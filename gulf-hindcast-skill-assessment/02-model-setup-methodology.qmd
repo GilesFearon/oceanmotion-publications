@@ -1,0 +1,50 @@
+# Model setup and methodology
+
+<!--
+TODO content for v1.0:
+
+CROCO subsection:
+- Configuration name: C04_I01_GLORYS_ERA5
+- Domain, grid (resolution, vertical levels)
+- Bathymetry source (note: regional dataset in v1.0; satellite-derived southern
+  Gulf bathymetry is a v1.x upgrade)
+- Atmospheric forcing: ERA5 (Hersbach et al.)
+- Boundary forcing: GLORYS reanalysis (Lellouche et al.)
+- Tides: TPXO10
+- Run period: Jan 2015 -- May 2025 (~10+ years)
+- Key namelist choices (point reader to appendix for full namelist)
+
+WW3 subsection:
+- Configuration name: RUN_02
+- WW3 v6.07.1, curvilinear grid 291x131
+- Physics packages: ST4, BT4
+- Forcing: ERA5 winds (hourly)
+- Boundary spectra: CMEMS WAV global model
+- Coupling: one-way from CROCO -- surface currents and water levels (preprocessed
+  via croco_srf_2_ww3 in somisana-croco/crocotools_py/postprocess.py)
+- Run period: Jan 2016 -- Dec 2016 (1 year; explicit limitation, see Ch. 5)
+- Key namelist choices
+
+Methodology subsection:
+- Skill metrics used: bias, RMSE, correlation R, scatter index SI
+- Definitions and equations (compact, reader-orienting)
+- Co-location procedure for satellite altimetry against gridded model
+- Co-location procedure for satellite SST against gridded model
+- Tide-gauge harmonic decomposition: utide / Codiga (2011)
+- Peer-comparator approach where used (e.g. CMEMS reanalysis as a benchmark
+  against the same reference observations)
+
+Target length: 4--5 pages.
+-->
+
+## CROCO configuration {#sec-croco-setup}
+
+*[TODO: configuration C04_I01_GLORYS_ERA5; domain, grid, bathymetry, vertical levels, forcing chain (ERA5, GLORYS, TPXO10), run period 2015–2025.]*
+
+## WW3 configuration {#sec-ww3-setup}
+
+*[TODO: WW3 v6.07.1 RUN_02; curvilinear grid; ST4 and BT4 physics; ERA5 hourly winds; CMEMS spectral boundaries; one-way CROCO coupling for surface currents and water levels; 2016 run period; reference to limitation discussion in Chapter 5.]*
+
+## Skill assessment methodology {#sec-skill-methodology}
+
+*[TODO: bias, RMSE, R, SI definitions; co-location procedures (satellite altimetry, satellite SST); tide-gauge harmonic decomposition (utide); peer comparator framing where applicable.]*

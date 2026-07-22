@@ -1,0 +1,39 @@
+# Introduction
+
+<!--
+TODO content for v1.0:
+
+- Regional context: Arabian Gulf as a shallow, semi-enclosed marginal sea;
+  high evaporation, hypersalinity; northwesterly Shamal-driven wave climate;
+  significance to desalination, ports, navigation.
+- Motivation for a regional, coupled ocean--wave hindcast (CROCO + WW3 with one-way
+  current and water-level coupling) over a long-period reanalysis-forced baseline.
+- Statement of what this report is and is not:
+    * IS: skill assessment of the hindcast against observations and reanalysis,
+      across temperature, salinity, water level, and waves.
+    * IS NOT: a forecast skill assessment, an engineering-grade design study,
+      or a peer-reviewed paper.
+- "Skill assessment" terminology, after Wilmott (1981), Jolliff et al. (2009),
+  Mentaschi et al. (2013).
+- Live-document framing: this is v1.0; the roadmap for v1.x appears in the
+  Limitations chapter and the changelog.
+- Reading guide: each variable chapter is self-contained.
+
+Target length: 2--3 pages.
+-->
+
+## Regional context {#sec-regional-context}
+
+*[TODO: short prose on the Gulf as a modelling domain — bathymetry, Strait of Hormuz exchange, Shamal wind regime, hypersaline outflow, key human use cases.]*
+
+## What this report is {#sec-what-this-is}
+
+*[TODO: explicit framing — hindcast, reanalysis-forced, skill assessment in the canonical metocean sense, not forecast verification.]*
+
+## Live document {#sec-live-document}
+
+*[TODO: state the live-document policy — versioned releases, changelog at the back, anticipated v1.x cadence.]*
+
+## How to read this report {#sec-reading-guide}
+
+*[TODO: orient the reader — variable-by-variable structure, where the qualitative content lives, where the quantitative skill numbers are.]*

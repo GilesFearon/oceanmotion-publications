@@ -1,0 +1,42 @@
+# Water level
+
+<!--
+TODO content for v1.0:
+
+Two stations: Salmiya (Kuwait) and Majis (Oman). Multi-year coverage.
+
+Predicted (tidal harmonic) comparison:
+- utide harmonic decomposition of both observed and modelled water level
+- Compare amplitudes and phases of dominant constituents (M2, S2, K1, O1, ...)
+- Source: oceanmotion-models/configs/gulf_01/croco_v1.3.1/hindcast/tidal_analysis/
+  -- utide_coef_Majis.pkl, utide_coef_Salmiya.pkl, croco_tidal_*.nc
+- Framing: a good predicted-tide comparison validates the modelled tidal
+  propagation, and by association the modelled tidal currents (which are not
+  separately validated in v1.0).
+
+Non-tidal residual comparison:
+- Residual = observed - predicted; vs CROCO non-tidal water level
+  (also residualised against MERCATOR pressure-driven component)
+- Source: postprocess_water_levels/plot_residuals_MERCATOR_pres_Majis.jpg,
+  plot_residuals_MERCATOR_pres_Salmiya.jpg
+  croco_residual_stats.nc
+- Framing: this is the operationally important component for ports
+  (storm surge, atmospheric pressure response, wind setup, basin oscillations).
+
+Skill stats per station: bias, RMSE, R, SI -- both for predicted-tide
+amplitude/phase agreement and for non-tidal residual correlation.
+
+Target length: 3--4 pages.
+-->
+
+## Stations {#sec-water-level-stations}
+
+*[TODO: Salmiya and Majis station map, observation source, record period, sampling frequency.]*
+
+## Predicted tidal comparison {#sec-water-level-tides}
+
+*[TODO: utide harmonic decomposition of CROCO and observed water level; comparison of dominant constituents (M2, S2, K1, O1, ...); per-station amplitude and phase agreement. Frame as: a good predicted-tide comparison gives confidence in the modelled tidal currents, which are not separately validated in v1.0.]*
+
+## Non-tidal residual comparison {#sec-water-level-residuals}
+
+*[TODO: residual (observed minus predicted) vs CROCO non-tidal water level, also residualised against MERCATOR pressure-driven component. Per-station bias, RMSE, R. Frame as the operationally important component for port and harbour operations.]*

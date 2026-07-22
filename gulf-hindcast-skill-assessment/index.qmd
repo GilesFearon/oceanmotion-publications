@@ -1,0 +1,11 @@
+# Preface {.unnumbered}
+
+This report presents a skill assessment of an ocean and wave hindcast of the Arabian Gulf, produced as part of the Ocean Motion Analytics regional modelling programme. It is intended for technical readers evaluating the modelling system for operational, planning, or research purposes, and answers the question: *how good is the model?*
+
+The report is organised by variable: temperature and salinity, water level, and waves. Each chapter sets out the available evidence, the comparison performed, and the resulting skill where it is defensible. Where validation is not currently possible — most notably for currents — the report says so explicitly rather than imply skill that has not been demonstrated.
+
+This is a *live document*. Versions are released as new evidence becomes available. The changelog at the back of this document records the changes between versions and the planned roadmap for the next release.
+
+::: {.callout-note appearance="simple"}
+**Scope of v1.0.** This release reports on the hindcast configurations as run under reanalysis (ERA5) atmospheric forcing. Skill of the *operational forecast system* — which uses the same model code but is forced by short-range numerical weather prediction — is a planned future deliverable, once a sufficient operational archive has accumulated. The hindcast skill assessed here represents an upper bound on operational skill for the same variables.
+:::

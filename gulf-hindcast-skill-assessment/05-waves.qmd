@@ -1,0 +1,46 @@
+# Waves
+
+<!--
+TODO content for v1.0:
+
+WW3 RUN_02 (with CROCO surface currents and water levels) co-located against
+CMEMS L3 satellite altimeter Hs from 6 missions (jason1/2/3, saral, cryo2, envi).
+Evaluation period: 2016 only.
+
+Headline figure: scatter plot Hs_model vs Hs_satellite, with bias, RMSE, R, SI.
+Source: oceanmotion-models/configs/gulf_01/ww3_v6.07.1/hindcast/RUN_02/
+        postprocess/scatter_hs.jpg
+
+Spatial-stats figure: bias, RMSE, R, SI as basin-wide colour fields.
+Source: postprocess/spatial_stats.jpg
+
+Discussion:
+- Spatial pattern of skill (NW Gulf vs central vs Strait of Hormuz)
+- Wind-speed dependence of bias (if extracted for RUN_02 -- check)
+- Acknowledgement of the 1-year limitation up front, not buried.
+
+Explicit limitation note (callout):
+- v1.0 reports skill over a single year (2016).
+- This is statistically weaker than a multi-year evaluation.
+- A multi-year coupled WW3 hindcast is the headline upgrade planned for v1.1.
+
+Target length: 3--4 pages.
+-->
+
+::: {.callout-warning appearance="simple"}
+**Single-year evaluation window.** WW3 RUN_02, the configuration with one-way
+coupling to CROCO surface currents and water levels, was run for January–December
+2016 only. The skill statistics in this chapter are therefore based on
+approximately one year of co-located satellite data. A multi-year coupled
+hindcast — extending RUN_02 to match the multi-year CROCO record — is the
+headline upgrade planned for the next release of this report (see
+@sec-roadmap).
+:::
+
+## Co-located scatter against satellite Hs {#sec-waves-scatter}
+
+*[TODO: scatter plot of WW3 Hs vs CMEMS L3 satellite Hs (6 altimeter missions, 2016); bias, RMSE, R, SI as a stats table or panel inset.]*
+
+## Spatial skill maps {#sec-waves-spatial}
+
+*[TODO: basin-wide bias, RMSE, R, SI fields. Discuss spatial pattern of skill — NW Gulf vs central vs near the Strait of Hormuz.]*

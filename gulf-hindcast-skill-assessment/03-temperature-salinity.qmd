@@ -1,0 +1,61 @@
+# Temperature and salinity
+
+<!--
+TODO content for v1.0:
+
+Sea surface temperature (skill against OSTIA satellite L4):
+- Monthly climatology of CROCO SST vs OSTIA, side-by-side fields
+  Source: oceanmotion-models/configs/gulf_01/croco_v1.3.1/hindcast/C04_I01_GLORYS_ERA5/
+          postprocess_sst_sss/plot_sst_monthly.jpg
+- Point timeseries vs OSTIA with bias / RMSE / R / SI
+  Source: same postprocess dir, southern-Gulf point already extracted
+- Regional correlation / RMSE maps vs OSTIA  ** NEW COMPUTE FOR v1.0 **
+  Adapt WW3 plot_spatial_stats.py pattern + crocotools_py/validation.py
+  Compute on the CROCO grid; show R and RMSE as basin-wide colour fields.
+
+Salinity (model-only descriptive — regional satellite SSS data quality is
+untrustworthy in this region and not used):
+- Monthly climatology of CROCO SSS, basin-wide
+  Source: postprocess_sst_sss/plot_sss_monthly.jpg
+- Mean cross-sections (Aug, Feb)
+  Source: postprocess_Foresea/monthly/plot_mean_section_salt_*.jpg
+
+Explicit framing: SST has skill statistics; SSS is shown as model output without
+skill statistics, with a clear note explaining why (regional satellite SSS
+trustworthiness).
+
+Target length: 4--5 pages.
+-->
+
+## Sea surface temperature {#sec-sst}
+
+### Monthly climatology against OSTIA {#sec-sst-climatology}
+
+*[TODO: CROCO monthly SST climatology vs OSTIA, side-by-side figure.]*
+
+### Point timeseries against OSTIA {#sec-sst-timeseries}
+
+*[TODO: timeseries comparison at a southern-Gulf point with skill statistics table.]*
+
+### Regional skill maps against OSTIA {#sec-sst-spatial}
+
+*[TODO **(new compute for v1.0)**: regional correlation and RMSE maps vs OSTIA on the CROCO grid.]*
+
+## Salinity {#sec-sss}
+
+::: {.callout-warning appearance="simple"}
+**No quantitative skill assessment for salinity in v1.0.**
+Regionally, available satellite SSS products (SMOS, SMAP) are not of sufficient
+quality in the Arabian Gulf — a shallow, hypersaline, marginal sea where the
+algorithms degrade — to support a defensible skill comparison. The salinity
+content here is therefore presented as model-derived characterisation only, not
+as a skill claim.
+:::
+
+### Modelled salinity climatology {#sec-sss-climatology}
+
+*[TODO: CROCO monthly SSS climatology, basin-wide.]*
+
+### Modelled salinity sections {#sec-sss-sections}
+
+*[TODO: mean north-south sections of salinity for August and February.]*

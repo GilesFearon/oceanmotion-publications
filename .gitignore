@@ -1,0 +1,35 @@
+# Quarto build outputs
+_book/
+_site/
+_freeze/
+.quarto/
+*.tex
+*.aux
+*.log
+*.out
+*.toc
+*.lof
+*.lot
+*.fls
+*.fdb_latexmk
+*.synctex.gz
+*.bbl
+*.blg
+
+# Generated PDFs at the source-tree level (releases live elsewhere)
+*-skill-assessment.pdf
+
+# Python
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+
+# Editor / OS
+.DS_Store
+.vscode/
+.idea/
+*.swp
+
+# Local notes
+SCRATCH*
+.claude/

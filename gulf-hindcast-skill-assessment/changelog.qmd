@@ -1,0 +1,16 @@
+# Changelog {.unnumbered}
+
+This document is released as a series of versions. Each entry below records the
+changes from the previous version. The most recent version is at the top.
+
+## v1.0 — *(draft, in preparation)*
+
+Initial release.
+
+- CROCO configuration: `C04_I01_GLORYS_ERA5`, multi-year coverage (Jan 2015 onwards).
+- WW3 configuration: `RUN_02` (one-way coupled to CROCO surface currents and water levels), Jan–Dec 2016.
+- Skill assessment for sea surface temperature against OSTIA, water level against tide gauges at Salmiya and Majis, significant wave height against CMEMS L3 satellite altimetry.
+- Salinity reported as model-derived characterisation only.
+- Currents not assessed.
+
+*[Planned content — see roadmap in Chapter 6.]*

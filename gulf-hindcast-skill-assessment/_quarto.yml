@@ -1,0 +1,70 @@
+project:
+  type: book
+  output-dir: _book
+
+book:
+  title: "Regional Ocean Modelling in the Arabian Gulf"
+  subtitle: "Wave and Circulation Hindcast Skill Assessment"
+  author:
+    - name: "Giles Fearon"
+      affiliation: "Ocean Motion Analytics"
+  date: today
+  date-format: "MMMM YYYY"
+  search: false
+  chapters:
+    - index.qmd
+    - 01-introduction.qmd
+    - 02-model-setup-methodology.qmd
+    - 03-temperature-salinity.qmd
+    - 04-water-level.qmd
+    - 05-waves.qmd
+    - 06-limitations-roadmap.qmd
+    - changelog.qmd
+    - references.qmd
+
+bibliography: refs.bib
+csl: https://www.zotero.org/styles/journal-of-geophysical-research
+
+format:
+  pdf:
+    documentclass: scrreprt
+    classoption:
+      - paper=a4
+      - DIV=12
+      - fontsize=11pt
+      - twoside=false
+      - chapterprefix=true
+      - numbers=noenddot
+    papersize: a4
+    geometry:
+      - margin=2.5cm
+      - top=2.8cm
+    include-in-header: style/in-header.tex
+    include-before-body: style/before-body.tex
+    toc: true
+    toc-depth: 2
+    lof: false
+    lot: false
+    number-sections: true
+    number-depth: 2
+    fig-pos: "H"
+    fig-cap-location: bottom
+    tbl-cap-location: top
+    colorlinks: true
+    linkcolor: black
+    citecolor: "MidnightBlue"
+    urlcolor: "MidnightBlue"
+    cite-method: biblatex
+
+execute:
+  freeze: auto
+  echo: false
+  warning: false
+  message: false
+
+# Document version. Bump for every published release; record in the changelog.
+# Used by style/before-body.tex to render the version on the cover.
+metadata:
+  version: "v1.0"
+  status: "draft"
+  contact: "info@oceanmotionanalytics.com"

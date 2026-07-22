@@ -1,0 +1,51 @@
+# Limitations and roadmap {#sec-roadmap}
+
+<!--
+TODO content for v1.0:
+
+Limitations to acknowledge explicitly (one short paragraph each):
+
+1. Currents are not yet quantitatively evaluated.
+   - The wave chapter relies on currents from CROCO via one-way coupling, so
+     the wave skill carries an implicit dependence on currents skill that is
+     not directly verified.
+   - The water-level chapter validates predicted tides (and by association
+     tidal currents) but not the residual current field.
+
+2. WW3 single-year evaluation window.
+
+3. Salinity has no quantitative skill assessment in v1.0 -- regional satellite
+   SSS is unreliable; the in-situ comparisons that exist are subject to
+   restrictions and cannot be reproduced in this report.
+
+4. Bathymetry uses the regional public-domain dataset; the southern Gulf
+   in particular benefits from a satellite-derived high-resolution upgrade
+   that is being prepared for v1.1.
+
+5. Operational forecast skill is not assessed (see Preface).
+
+Roadmap for v1.x (each item becomes a substantive update in a subsequent
+release; the goal is for each release to add one or two of these):
+
+- Multi-year coupled WW3 hindcast (extend RUN_02 to >=3 years; requires
+  generating missing CROCO `for_ww3` files for 2017M02--2018M09 first).
+- Quantitative currents evaluation (drifters, ADCP if available, GLORYS
+  reanalysis comparison; basin-wide modelled monthly mean surface circulation
+  maps as a preliminary qualitative chapter).
+- Satellite-derived high-resolution southern Gulf bathymetry, with re-validation
+  of all variables on the updated bathymetry.
+- AGRIF nested case study -- saved for a separate publication, not a v1.x
+  of this document.
+- Operational forecast skill assessment, once enough operational archive has
+  accumulated.
+
+Target length: 2--3 pages.
+-->
+
+## Acknowledged limitations {#sec-limitations}
+
+*[TODO: short paragraph each on currents, single-year wave evaluation, salinity, bathymetry, operational vs hindcast.]*
+
+## Roadmap for v1.x releases {#sec-future-work}
+
+*[TODO: ordered list of planned releases — multi-year coupled WW3, currents quantitative evaluation, satellite-derived southern Gulf bathymetry, operational forecast skill (later).]*
