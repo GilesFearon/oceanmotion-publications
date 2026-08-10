@@ -47,6 +47,10 @@ ASSET_DIR  = os.path.join(HERE, "assets")
 MARK_DARK  = os.path.join(ASSET_DIR, "om-mark-dark.png")   # cyan + accent, dark grounds
 MARK_LIGHT = os.path.join(ASSET_DIR, "om-mark-light.png")  # navy + accent, light grounds
 
+# Static still of the website's animated hero flow field. Regenerate (or reroll the
+# composition with a different --seed) via:  python3 make_hero.py
+HERO = os.path.join(ASSET_DIR, "hero-streamlines.png")
+
 # Brand faces, vendored from Google Fonts (both families are OFL/SIL licensed,
 # which permits embedding). Naming a font in a run only states a preference —
 # a machine without the font substitutes silently while still reporting the
@@ -151,6 +155,15 @@ def bg(s, color):
     return r
 
 
+def full_bleed(s, path):
+    """Cover the slide with an image, pushed to the back so later shapes sit on top.
+    The source is 16:9 like the slide, so it fills without cropping or distortion."""
+    pic = s.shapes.add_picture(path, 0, 0, width=EMU_W, height=EMU_H)
+    s.shapes._spTree.remove(pic._element)
+    s.shapes._spTree.insert(2, pic._element)
+    return pic
+
+
 def rect(s, left, top, w, h, color, line=None):
     r = s.shapes.add_shape(MSO_SHAPE.RECTANGLE, left, top, w, h)
     r.fill.solid(); r.fill.fore_color.rgb = color
@@ -218,7 +231,10 @@ def wordmark(s, left, top, on_dark=True):
 
 
 # ================================================================== 1. TITLE
-s = slide(); bg(s, ABYSS)
+s = slide()
+# hero flow field, full bleed — it is opaque and 16:9, so it replaces the flat
+# ABYSS ground entirely. Its left side stays dark, which is where the title sits.
+full_bleed(s, HERO)
 # faint horizon rule
 rect(s, MARGIN, Inches(2.4), Inches(1.6), Pt(2), ACCENT)
 wordmark(s, MARGIN, Inches(0.7), on_dark=True)
