@@ -55,6 +55,24 @@ prs.slide_height = EMU_H
 BLANK = prs.slide_layouts[6]
 
 
+def set_theme_fonts(presentation, major, minor):
+    """Point the theme's major/minor font scheme at the brand faces, so any new
+    text box added later inherits them instead of the default Calibri."""
+    from lxml import etree
+    from pptx.opc.constants import RELATIONSHIP_TYPE as RT
+
+    part = presentation.slide_masters[0].part.part_related_by(RT.THEME)
+    theme = etree.fromstring(part.blob)
+    scheme = theme.find(qn('a:themeElements')).find(qn('a:fontScheme'))
+    for tag, face in ((qn('a:majorFont'), major), (qn('a:minorFont'), minor)):
+        scheme.find(tag).find(qn('a:latin')).set('typeface', face)
+    part._blob = etree.tostring(theme, xml_declaration=True,
+                                encoding='UTF-8', standalone=True)
+
+
+set_theme_fonts(prs, F_DISPLAY, F_BODY)
+
+
 # ------------------------------------------------------------------ helpers
 def slide():
     return prs.slides.add_slide(BLANK)
