@@ -33,7 +33,9 @@ NUM = 180                     # particles
 TAIL_LEN = 40
 ACCENT_TAIL_LEN = 80
 GRID_N = 64                   # coarse SSH grid
-NUM_EDDIES = 4
+NUM_EDDIES = 1                # the site uses 4, but a still wants a much calmer
+                              # field: with nothing moving to carry the eye, several
+                              # eddies read as competing blobs behind the title
 SPEED_SCALE = 1.2             # velocity scale in blendAndDeriveVelocity
 STEP = 1.1                    # px per frame multiplier
 BURN_IN = 220                 # frames to advance before freezing the frame
@@ -56,13 +58,13 @@ OUT = os.path.join(HERE, "assets", "hero-streamlines.png")
 
 
 # ---------------------------------------------------------------- field
-def random_eddies(rng):
+def random_eddies(rng, n_eddies=NUM_EDDIES):
     """Eddies biased to the right half so the left (where the title sits) stays calm."""
     eddies = [(0.7 + rng.random() * 0.2,          # guaranteed warm eddy, top-right
                0.1 + rng.random() * 0.25,
                0.12 + rng.random() * 0.14,
                0.6 + rng.random() * 0.4)]
-    for _ in range(NUM_EDDIES - 1):
+    for _ in range(n_eddies - 1):
         eddies.append((0.45 + rng.random() * 0.47,
                        0.08 + rng.random() * 0.84,
                        0.08 + rng.random() * 0.18,
@@ -202,11 +204,13 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--seed", type=int, default=7, help="field/particle RNG seed")
     ap.add_argument("--dpi", type=int, default=180, help="output dpi (180 -> 2880px wide)")
+    ap.add_argument("--eddies", type=int, default=NUM_EDDIES,
+                    help="eddies in the field; fewer = simpler background")
     ap.add_argument("--out", default=OUT)
     args = ap.parse_args()
 
     rng = np.random.default_rng(args.seed)
-    ssh = compute_ssh(random_eddies(rng))
+    ssh = compute_ssh(random_eddies(rng, args.eddies))
     gu, gv = derive_velocity(ssh)
     ps = simulate(rng, gu, gv)
 
