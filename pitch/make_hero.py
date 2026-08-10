@@ -29,7 +29,8 @@ from matplotlib.collections import LineCollection
 # ---------------------------------------------------------------- config
 # Mirrors the constants at the top of hero.js.
 W, H = 1600.0, 900.0          # logical CSS pixel space the sim runs in
-NUM = 180                     # particles
+NUM = 85                      # particles; the site's 180 spread over a full-width
+                              # canvas, so packing them into a narrow band crowds it
 TAIL_LEN = 80                 # 2x the site's 40: longer trails give the still the
                               # sense of sweep that motion supplies on the web
 ACCENT_TAIL_LEN = 80
@@ -52,7 +53,7 @@ LINE_SCALE = 2.0              # the site's widths are ~1px hairlines at this out
                               # size, which alias into dashes; thicken them
 
 # --- horizontal confinement ---------------------------------------------
-FIELD_X0 = 2.0 / 3.0          # field occupies the right third; left 2/3 stays black
+FIELD_X0 = 3.0 / 5.0          # field occupies the right 2/5; left 3/5 stays black
 FIELD_FADE = 0.05             # width of the alpha ramp at that edge, so streamlines
                               # fade in rather than being guillotined by a hard line
 MIN_TAIL = 10                 # drop stubs: a just-respawned particle reads as motion
@@ -76,12 +77,11 @@ OUT = os.path.join(HERE, "assets", "hero-streamlines.png")
 # ---------------------------------------------------------------- field
 def random_eddies(rng, n_eddies=NUM_EDDIES):
     """Eddies sit inside the right-hand band so the title area stays black."""
-    # One broad eddy centred on (or just past) the right edge. Tails this long wrap
-    # right around a small, fully-visible eddy and read as a dartboard of concentric
-    # rings; seeing only its flank gives sweeping arcs that run off the edge instead.
-    eddies = [(0.96 + rng.random() * 0.08,        # centre at/beyond the right edge
+    # One broad eddy, its SSH peak sitting inside the visible band and its radius
+    # scaled so the circulation fills the band's width.
+    eddies = [(0.77 + rng.random() * 0.06,        # peak well inside the right edge
                0.25 + rng.random() * 0.30,
-               0.22 + rng.random() * 0.08,
+               0.19 + rng.random() * 0.06,
                0.6 + rng.random() * 0.4)]
     for _ in range(n_eddies - 1):
         eddies.append((0.45 + rng.random() * 0.47,
@@ -132,10 +132,12 @@ def background(ssh, w=960, h=540):
     nx, ny = np.meshgrid(np.linspace(0, 1, w), np.linspace(0, 1, h))
     t = sample(ssh, nx, ny)
     t = (t - t.min()) / (np.ptp(t) or 1.0)
-    # quadratic suppression as on the site, but compressed so it reaches zero at
-    # FIELD_X0 rather than at the left edge — everything left of that is flat ground
+    # Suppression as on the site, but compressed so it reaches zero at FIELD_X0
+    # rather than at the left edge — everything left of that is flat ground. The
+    # exponent is below the site's 2 because squaring biases the *apparent* warm
+    # centroid toward the right edge, pulling it off the eddy's actual SSH peak.
     ramp = np.clip((nx - FIELD_X0) / (1.0 - FIELD_X0), 0.0, 1.0)
-    s = t * ramp ** 2
+    s = t * ramp ** 1.6
     img = np.empty((h, w, 3), dtype=np.uint8)
     img[..., 0] = (5 + s * 102).astype(np.uint8)     # R:  5 -> 107
     img[..., 1] = (15 + s * 27).astype(np.uint8)     # G: 15 -> 42
