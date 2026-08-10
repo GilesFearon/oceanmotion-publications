@@ -40,6 +40,21 @@ NUM_EDDIES = 1                # the site uses 4, but a still wants a much calmer
 SPEED_SCALE = 1.2             # velocity scale in blendAndDeriveVelocity
 STEP = 1.1                    # px per frame multiplier
 BURN_IN = 220                 # frames to advance before freezing the frame
+
+# --- still-image quality -------------------------------------------------
+# The browser redraws 60x a second, so a thin, roughly-integrated, softly-beaded
+# stroke reads fine there. Frozen and enlarged onto a 13" slide it does not, so
+# the still is integrated more accurately and stroked more heavily than the site.
+SUBSTEPS = 3                  # RK4 sub-steps per frame: kills the outward drift
+                              # forward Euler produces on curved streamlines, and
+                              # shortens each segment so strokes read as continuous
+LINE_SCALE = 2.0              # the site's widths are ~1px hairlines at this output
+                              # size, which alias into dashes; thicken them
+
+# --- horizontal confinement ---------------------------------------------
+FIELD_X0 = 2.0 / 3.0          # field occupies the right third; left 2/3 stays black
+FIELD_FADE = 0.05             # width of the alpha ramp at that edge, so streamlines
+                              # fade in rather than being guillotined by a hard line
 MIN_TAIL = 10                 # drop stubs: a just-respawned particle reads as motion
                               # while animating, but as a speck of dust in a still
 MIN_SPAN = 9.0                # ...likewise a particle stalled in a low-velocity core,
@@ -60,10 +75,13 @@ OUT = os.path.join(HERE, "assets", "hero-streamlines.png")
 
 # ---------------------------------------------------------------- field
 def random_eddies(rng, n_eddies=NUM_EDDIES):
-    """Eddies biased to the right half so the left (where the title sits) stays calm."""
-    eddies = [(0.7 + rng.random() * 0.2,          # guaranteed warm eddy, top-right
-               0.1 + rng.random() * 0.25,
-               0.12 + rng.random() * 0.14,
+    """Eddies sit inside the right-hand band so the title area stays black."""
+    # One broad eddy centred on (or just past) the right edge. Tails this long wrap
+    # right around a small, fully-visible eddy and read as a dartboard of concentric
+    # rings; seeing only its flank gives sweeping arcs that run off the edge instead.
+    eddies = [(0.96 + rng.random() * 0.08,        # centre at/beyond the right edge
+               0.25 + rng.random() * 0.30,
+               0.22 + rng.random() * 0.08,
                0.6 + rng.random() * 0.4)]
     for _ in range(n_eddies - 1):
         eddies.append((0.45 + rng.random() * 0.47,
@@ -114,7 +132,10 @@ def background(ssh, w=960, h=540):
     nx, ny = np.meshgrid(np.linspace(0, 1, w), np.linspace(0, 1, h))
     t = sample(ssh, nx, ny)
     t = (t - t.min()) / (np.ptp(t) or 1.0)
-    s = t * nx ** 2                       # quadratic suppression, 0 at left
+    # quadratic suppression as on the site, but compressed so it reaches zero at
+    # FIELD_X0 rather than at the left edge — everything left of that is flat ground
+    ramp = np.clip((nx - FIELD_X0) / (1.0 - FIELD_X0), 0.0, 1.0)
+    s = t * ramp ** 2
     img = np.empty((h, w, 3), dtype=np.uint8)
     img[..., 0] = (5 + s * 102).astype(np.uint8)     # R:  5 -> 107
     img[..., 1] = (15 + s * 27).astype(np.uint8)     # G: 15 -> 42
@@ -123,37 +144,58 @@ def background(ssh, w=960, h=540):
 
 
 # ---------------------------------------------------------------- particles
+def velocity(gu, gv, x, y):
+    return (float(sample(gu, np.array(x / W), np.array(y / H))),
+            float(sample(gv, np.array(x / W), np.array(y / H))))
+
+
+def rk4(gu, gv, x, y, h):
+    """Classical RK4 on the (steady) velocity field. Forward Euler, as used in the
+    browser, systematically throws particles outward on curved streamlines — an
+    error invisible at 60fps but obvious in a still, where it turns what should be
+    closed contours around an eddy into loose spirals."""
+    k1x, k1y = velocity(gu, gv, x, y)
+    k2x, k2y = velocity(gu, gv, x + 0.5 * h * k1x, y + 0.5 * h * k1y)
+    k3x, k3y = velocity(gu, gv, x + 0.5 * h * k2x, y + 0.5 * h * k2y)
+    k4x, k4y = velocity(gu, gv, x + h * k3x, y + h * k3y)
+    return (x + h * (k1x + 2 * k2x + 2 * k3x + k4x) / 6.0,
+            y + h * (k1y + 2 * k2y + 2 * k3y + k4y) / 6.0)
+
+
 def simulate(rng, gu, gv):
     """Advect particles and return their trails, frozen after BURN_IN frames."""
+    x0 = FIELD_X0 * W
+
     def spawn(idx, aged):
         if idx == 0:                                  # the single accent streamline
             key = "accent"
-            x = W * 0.55 + rng.random() * (W * 0.35)
+            x = x0 + rng.random() * (W - x0)
             y = H * 0.1 + rng.random() * (H * 0.5)
             life = 600 + rng.random() * 400
         else:
             r = rng.random()
             key = "cyan" if r < 0.14 else "white" if r < 0.48 else "faint"
-            x, y = rng.random() * W, rng.random() * H
+            # seeded only in the right-hand band; the flow may carry them left,
+            # where the edge ramp fades them out
+            x = x0 + rng.random() * (W - x0)
+            y = rng.random() * H
             life = 160 + rng.random() * 260
         return {"x": x, "y": y, "trail": [(x, y)], "key": key, "life": life,
                 # stagger initial ages so the frozen frame shows a natural mix
                 # of fresh and fading streamlines rather than a synchronised flush
                 "age": rng.random() * life if aged else 0.0,
-                "maxtail": ACCENT_TAIL_LEN if idx == 0 else TAIL_LEN}
+                "maxtail": (ACCENT_TAIL_LEN if idx == 0 else TAIL_LEN) * SUBSTEPS}
 
     ps = [spawn(i, aged=True) for i in range(NUM)]
+    h = STEP / SUBSTEPS
 
     for _ in range(BURN_IN):
         for i, p in enumerate(ps):
-            u = float(sample(gu, np.array(p["x"] / W), np.array(p["y"] / H)))
-            v = float(sample(gv, np.array(p["x"] / W), np.array(p["y"] / H)))
-            p["x"] += u * STEP
-            p["y"] += v * STEP
+            for _ in range(SUBSTEPS):
+                p["x"], p["y"] = rk4(gu, gv, p["x"], p["y"], h)
+                p["trail"].append((p["x"], p["y"]))
             p["age"] += 1.0                # dt * 0.06 at ~60fps ~= 1 age unit/frame
-            p["trail"].append((p["x"], p["y"]))
-            if len(p["trail"]) > p["maxtail"]:
-                p["trail"].pop(0)
+            del p["trail"][:-p["maxtail"]]
             if (p["x"] < -30 or p["x"] > W + 30 or p["y"] < -30 or p["y"] > H + 30
                     or p["age"] > p["life"]):
                 ps[i] = spawn(i, aged=False)
@@ -162,11 +204,12 @@ def simulate(rng, gu, gv):
 
 def draw(ps, ax):
     """Each trail is a run of segments whose alpha ramps quadratically to the head."""
+    x0, fade = FIELD_X0 * W, FIELD_FADE * W
     segs, cols, widths = [], [], []
     accent = []
     for p in ps:
         tr = p["trail"]
-        if len(tr) < MIN_TAIL:
+        if len(tr) < MIN_TAIL * SUBSTEPS:
             continue
         xs = [q[0] for q in tr]; ys = [q[1] for q in tr]
         if max(max(xs) - min(xs), max(ys) - min(ys)) < MIN_SPAN:
@@ -177,8 +220,13 @@ def draw(ps, ax):
         for j in range(1, n):
             frac = j / n
             seg = [tr[j - 1], tr[j]]
-            col = (r, g, b, base * frac * frac)
-            lw = w * 0.72          # CSS px -> points at the 100-dpi logical scale
+            # smoothstep the alpha to zero at the left edge of the band
+            e = min(1.0, max(0.0, ((seg[0][0] + seg[1][0]) * 0.5 - x0) / fade))
+            edge = e * e * (3.0 - 2.0 * e)
+            if edge <= 0.0:
+                continue
+            col = (r, g, b, base * frac * frac * edge)
+            lw = w * 0.72 * LINE_SCALE   # CSS px -> points at the 100-dpi scale
             if p["key"] == "accent":
                 accent.append((seg, col, lw))
             else:
@@ -190,7 +238,9 @@ def draw(ps, ax):
     # the accent streamline carries a soft glow on the site (shadowBlur); approximate
     # it with a few progressively wider, fainter passes underneath the core stroke
     if accent:
-        for mult, fade in ((6.0, 0.05), (3.5, 0.09), (2.0, 0.16)):
+        # multipliers are modest because LINE_SCALE has already thickened the core
+        # stroke; the site's wider ratios turn the accent into an orange blob here
+        for mult, fade in ((3.2, 0.05), (2.1, 0.09), (1.5, 0.14)):
             ax.add_collection(LineCollection(
                 [s for s, _, _ in accent],
                 colors=[(c[0], c[1], c[2], c[3] * fade) for _, c, _ in accent],
