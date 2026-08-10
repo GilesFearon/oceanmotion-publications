@@ -202,6 +202,22 @@ def run(p, text, font=F_BODY, size=18, color=INK, bold=False, italic=False,
     return r
 
 
+def gradient_text(p, text, c_from, c_to, font, size):
+    """Stand-in for the website's `linear-gradient(90deg, ...)` + `background-clip:
+    text` on .wordmark__name, by interpolating a solid colour per character.
+
+    PowerPoint can do a true gradient text fill, but Google Slides drops it on
+    import and flattens the text to one colour — so solid runs are used instead.
+    They survive every renderer. The cost is that colour steps with character
+    index rather than x-position, and kerning is not applied between runs; at
+    wordmark size neither is perceptible."""
+    n = len(text)
+    for i, ch in enumerate(text):
+        t = i / (n - 1) if n > 1 else 0.0
+        color = RGBColor(*(round(a + (b - a) * t) for a, b in zip(c_from, c_to)))
+        run(p, ch, font=font, size=size, color=color)
+
+
 def eyebrow(s, left, top, text, color=INK_2, w=Inches(6)):
     """Mono uppercase eyebrow with a short leading rule (mirrors .section-eyebrow)."""
     rule_w = Inches(0.42)
@@ -224,9 +240,11 @@ def wordmark(s, left, top, on_dark=True):
     glyph(s, left - Inches(0.05), top - Inches(0.03), g_h, on_dark)
     tf = box(s, left + g_h, top, Inches(6), Inches(0.5))
     p = tf.paragraphs[0]
-    name_c = PAPER if on_dark else INK
+    # the name carries the site's white->cyan blend on dark grounds, ink->navy on light
+    grad = (PAPER, CYAN_LT) if on_dark else (INK, NAVY_MID)
     suf_c = CYAN_LT if on_dark else INK_2
-    run(p, "Ocean Motion ", font=F_DISPLAY, size=22, color=name_c)
+    gradient_text(p, "Ocean Motion", grad[0], grad[1], F_DISPLAY, 22)
+    run(p, " ", font=F_DISPLAY, size=22, color=grad[1])
     run(p, "ANALYTICS", font=F_MONO, size=10, color=suf_c, track=220, caps=True)
 
 

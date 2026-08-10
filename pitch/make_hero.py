@@ -30,7 +30,8 @@ from matplotlib.collections import LineCollection
 # Mirrors the constants at the top of hero.js.
 W, H = 1600.0, 900.0          # logical CSS pixel space the sim runs in
 NUM = 180                     # particles
-TAIL_LEN = 40
+TAIL_LEN = 80                 # 2x the site's 40: longer trails give the still the
+                              # sense of sweep that motion supplies on the web
 ACCENT_TAIL_LEN = 80
 GRID_N = 64                   # coarse SSH grid
 NUM_EDDIES = 1                # the site uses 4, but a still wants a much calmer
