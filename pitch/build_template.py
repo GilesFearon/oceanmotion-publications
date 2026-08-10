@@ -42,9 +42,26 @@ F_MONO    = "IBM Plex Mono"
 # mirrored from oceanmotion-web) so the deck stays self-contained. To refresh:
 #   convert -background none -density 1600 assets/om-mark-dark.svg \
 #           -resize 1024x1024 assets/om-mark-dark.png   (and -light likewise)
-ASSET_DIR  = os.path.join(os.path.dirname(os.path.abspath(__file__)), "assets")
+HERE       = os.path.dirname(os.path.abspath(__file__))
+ASSET_DIR  = os.path.join(HERE, "assets")
 MARK_DARK  = os.path.join(ASSET_DIR, "om-mark-dark.png")   # cyan + accent, dark grounds
 MARK_LIGHT = os.path.join(ASSET_DIR, "om-mark-light.png")  # navy + accent, light grounds
+
+# Brand faces, vendored from Google Fonts (both families are OFL/SIL licensed,
+# which permits embedding). Naming a font in a run only states a preference —
+# a machine without the font substitutes silently while still reporting the
+# requested name — so the faces are embedded into the .pptx itself. Refresh via
+# the same families the website loads (see oceanmotion-web/index.html).
+FONT_DIR = os.path.join(HERE, "fonts")
+EMBED_FONTS = {
+    F_DISPLAY: {"regular": "InstrumentSerif-Regular.ttf",
+                "italic":  "InstrumentSerif-Italic.ttf"},
+    F_BODY:    {"regular": "IBMPlexSans-Regular.ttf",
+                "bold":    "IBMPlexSans-Bold.ttf",
+                "italic":  "IBMPlexSans-Italic.ttf",
+                "boldItalic": "IBMPlexSans-BoldItalic.ttf"},
+    F_MONO:    {"regular": "IBMPlexMono-Regular.ttf"},
+}
 
 EMU_W, EMU_H = Inches(13.333), Inches(7.5)
 MARGIN = Inches(0.92)
@@ -68,6 +85,40 @@ def set_theme_fonts(presentation, major, minor):
         scheme.find(tag).find(qn('a:latin')).set('typeface', face)
     part._blob = etree.tostring(theme, xml_declaration=True,
                                 encoding='UTF-8', standalone=True)
+
+
+def embed_fonts(presentation, families):
+    """Embed the brand faces as /ppt/fonts/*.fntdata so the deck renders as
+    designed on machines that don't have them installed. Honoured by PowerPoint
+    and LibreOffice; Google Slides ignores embedded fonts and needs the families
+    added to the account's font list instead."""
+    from pptx.opc.constants import RELATIONSHIP_TYPE as RT
+    from pptx.opc.package import Part
+    from pptx.opc.packuri import PackURI
+
+    pres_part = presentation.part
+    root = pres_part._element
+    lst = root.makeelement(qn('p:embeddedFontLst'), {})
+
+    n = 0
+    for typeface, faces in families.items():
+        ef = root.makeelement(qn('p:embeddedFont'), {})
+        ef.append(root.makeelement(qn('p:font'),
+                                   {'typeface': typeface, 'charset': '0'}))
+        for style in ("regular", "bold", "italic", "boldItalic"):
+            if style not in faces:
+                continue
+            n += 1
+            with open(os.path.join(FONT_DIR, faces[style]), "rb") as fh:
+                blob = fh.read()
+            part = Part(PackURI("/ppt/fonts/font%d.fntdata" % n),
+                        "application/x-fontdata", pres_part.package, blob)
+            rId = pres_part.relate_to(part, RT.FONT)
+            ef.append(root.makeelement(qn("p:" + style), {qn('r:id'): rId}))
+        lst.append(ef)
+
+    # schema order: embeddedFontLst follows notesSz, precedes defaultTextStyle
+    root.find(qn('p:notesSz')).addnext(lst)
 
 
 set_theme_fonts(prs, F_DISPLAY, F_BODY)
@@ -326,6 +377,8 @@ run(p2, "giles@oceanmotionanalytics.com", font=F_MONO, size=13, color=CYAN_LT)
 p3 = tf.add_paragraph(); p3.space_before = Pt(2)
 run(p3, "oceanmotionanalytics.com", font=F_MONO, size=13, color=INK_3)
 
+
+embed_fonts(prs, EMBED_FONTS)
 
 prs.save("oma-pitch-template.pptx")
 print("wrote oma-pitch-template.pptx —", len(prs.slides._sldIdLst), "slides")
