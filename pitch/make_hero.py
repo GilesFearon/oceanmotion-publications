@@ -68,8 +68,14 @@ WARM = tuple(int(round(g + WARM_GAIN * (hi - g)))
              for g, hi in zip(GROUND, (107, 42, 20)))
 MIN_TAIL = 10                 # drop stubs: a just-respawned particle reads as motion
                               # while animating, but as a speck of dust in a still
-MIN_SPAN = 9.0                # ...likewise a particle stalled in a low-velocity core,
+MIN_SPAN = 14.0               # ...likewise a particle stalled in a low-velocity core,
                               # whose whole trail collapses into a few px
+
+# Radial cutoff, in eddy radii, measured from the SSH peak. Far outside the eddy the
+# gradient is nearly flat, so particles there barely move: they contribute stubby
+# fragments that read as dirt on the slide rather than as circulation.
+RADIAL_R0 = 1.5               # full opacity within this many radii of the centre
+RADIAL_R1 = 2.3               # faded to nothing beyond this
 
 # The site mixes faint blue, white and cyan streamlines. The deck uses cyan only,
 # keeping the three tiers purely as an alpha/width hierarchy so the field still has
@@ -147,9 +153,10 @@ def mask_profile(nx, x1):
     return t * t * (3.0 - 2.0 * t)
 
 
-def background(ssh, x1, w=960, h=540):
+def background(ssh, eddy, w=960, h=540):
     """SSH shaded from the abyss ground (low) toward warm orange (high), faded out
     to the left by mask_profile so the title area stays flat black."""
+    x1 = eddy[0]
     nx, ny = np.meshgrid(np.linspace(0, 1, w), np.linspace(0, 1, h))
     t = sample(ssh, nx, ny)
     t = (t - t.min()) / (np.ptp(t) or 1.0)
@@ -232,8 +239,10 @@ def simulate(rng, gu, gv):
     return ps
 
 
-def draw(ps, ax, x1):
+def draw(ps, ax, eddy):
     """Each trail is a run of segments whose alpha ramps quadratically to the head."""
+    cx, cy, er, _ = eddy
+    x1 = cx
     segs, cols, widths = [], [], []
     accent = []
     for p in ps:
@@ -249,12 +258,19 @@ def draw(ps, ax, x1):
         for j in range(1, n):
             frac = j / n
             seg = [tr[j - 1], tr[j]]
-            # streamlines fade on the same horizontal profile as the SSH shading
-            edge = float(mask_profile(
-                np.array((seg[0][0] + seg[1][0]) * 0.5 / W), x1))
+            mx = (seg[0][0] + seg[1][0]) * 0.5
+            my = (seg[0][1] + seg[1][1]) * 0.5
+            # streamlines fade on the same horizontal profile as the SSH shading...
+            edge = float(mask_profile(np.array(mx / W), x1))
             if edge <= 0.0:
                 continue
-            col = (r, g, b, base * frac * frac * edge)
+            # ...and again radially, so the field ends where the eddy's influence does
+            d = np.hypot(mx / W - cx, my / H - cy) / er
+            q = min(1.0, max(0.0, (RADIAL_R1 - d) / (RADIAL_R1 - RADIAL_R0)))
+            radial = q * q * (3.0 - 2.0 * q)
+            if radial <= 0.0:
+                continue
+            col = (r, g, b, base * frac * frac * edge * radial)
             lw = w * 0.72 * LINE_SCALE   # CSS px -> points at the 100-dpi scale
             if p["key"] == "accent":
                 accent.append((seg, col, lw))
@@ -291,7 +307,7 @@ def main():
 
     rng = np.random.default_rng(args.seed)
     eddies = random_eddies(rng, args.eddies)
-    x1 = eddies[0][0]                      # mask plateaus at the main eddy's centre
+    eddy = eddies[0]                       # mask plateaus at the main eddy's centre
     ssh = compute_ssh(eddies)
     gu, gv = derive_velocity(ssh)
     ps = simulate(rng, gu, gv)
@@ -300,9 +316,9 @@ def main():
     ax = fig.add_axes([0, 0, 1, 1])
     ax.set_xlim(0, W); ax.set_ylim(H, 0)   # y down, as in canvas coords
     ax.axis("off")
-    ax.imshow(background(ssh, x1), extent=(0, W, H, 0), interpolation="bilinear",
+    ax.imshow(background(ssh, eddy), extent=(0, W, H, 0), interpolation="bilinear",
               aspect="auto", zorder=0)
-    draw(ps, ax, x1)
+    draw(ps, ax, eddy)
 
     os.makedirs(os.path.dirname(args.out), exist_ok=True)
     fig.savefig(args.out, dpi=args.dpi, facecolor="#050f1c")
