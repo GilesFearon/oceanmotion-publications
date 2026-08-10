@@ -58,6 +58,14 @@ LINE_SCALE = 2.0              # the site's widths are ~1px hairlines at this out
 # crosses the SSH peak multiplies the peak down on its left flank and not its right,
 # which walks the apparent warm centroid off-centre from the circulation.
 FIELD_X0 = 0.5                # mask reaches zero here — left half is flat ground
+
+# --- SSH shading ---------------------------------------------------------
+GROUND = (5, 15, 28)          # --color-abyss, the low-SSH end of the ramp
+WARM_GAIN = 0.5               # fraction of the site's excursion toward #6b2a14;
+                              # at full strength the eddy reads far hotter frozen
+                              # on a slide than it does moving behind a web page
+WARM = tuple(int(round(g + WARM_GAIN * (hi - g)))
+             for g, hi in zip(GROUND, (107, 42, 20)))
 MIN_TAIL = 10                 # drop stubs: a just-respawned particle reads as motion
                               # while animating, but as a speck of dust in a still
 MIN_SPAN = 9.0                # ...likewise a particle stalled in a low-velocity core,
@@ -85,8 +93,8 @@ def random_eddies(rng, n_eddies=NUM_EDDIES):
     """Eddies sit inside the right-hand band so the title area stays black."""
     # One broad eddy, its SSH peak sitting inside the visible band and its radius
     # scaled so the circulation fills the band's width.
-    eddies = [(0.77 + rng.random() * 0.06,        # peak well inside the right edge
-               0.25 + rng.random() * 0.30,
+    eddies = [(0.80 + rng.random() * 0.07,        # peak toward the top right
+               0.13 + rng.random() * 0.13,
                0.19 + rng.random() * 0.06,
                0.6 + rng.random() * 0.4)]
     for _ in range(n_eddies - 1):
@@ -140,16 +148,15 @@ def mask_profile(nx, x1):
 
 
 def background(ssh, x1, w=960, h=540):
-    """SSH shaded dark navy (low) to warm orange (high), suppressed quadratically
-    toward the left edge so the title area stays near-black. Same ramp as hero.js."""
+    """SSH shaded from the abyss ground (low) toward warm orange (high), faded out
+    to the left by mask_profile so the title area stays flat black."""
     nx, ny = np.meshgrid(np.linspace(0, 1, w), np.linspace(0, 1, h))
     t = sample(ssh, nx, ny)
     t = (t - t.min()) / (np.ptp(t) or 1.0)
     s = t * mask_profile(nx, x1)
     img = np.empty((h, w, 3), dtype=np.uint8)
-    img[..., 0] = (5 + s * 102).astype(np.uint8)     # R:  5 -> 107
-    img[..., 1] = (15 + s * 27).astype(np.uint8)     # G: 15 -> 42
-    img[..., 2] = (28 - s * 8).astype(np.uint8)      # B: 28 -> 20
+    for c in range(3):
+        img[..., c] = (GROUND[c] + s * (WARM[c] - GROUND[c])).astype(np.uint8)
     return img
 
 
