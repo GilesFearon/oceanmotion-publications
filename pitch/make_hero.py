@@ -33,7 +33,6 @@ NUM = 51                      # particles; the site's 180 spread over a full-wid
                               # canvas, so packing them into a narrow band crowds it
 TAIL_LEN = 80                 # 2x the site's 40: longer trails give the still the
                               # sense of sweep that motion supplies on the web
-ACCENT_TAIL_LEN = 80
 GRID_N = 64                   # coarse SSH grid
 NUM_EDDIES = 1                # the site uses 4, but a still wants a much calmer
                               # field: with nothing moving to carry the eye, several
@@ -49,7 +48,7 @@ BURN_IN = 220                 # frames to advance before freezing the frame
 SUBSTEPS = 3                  # RK4 sub-steps per frame: kills the outward drift
                               # forward Euler produces on curved streamlines, and
                               # shortens each segment so strokes read as continuous
-LINE_SCALE = 2.0              # the site's widths are ~1px hairlines at this output
+LINE_SCALE = 2.6              # the site's widths are ~1px hairlines at this output
                               # size, which alias into dashes; thicken them
 
 # --- horizontal confinement ---------------------------------------------
@@ -77,18 +76,13 @@ MIN_SPAN = 14.0               # ...likewise a particle stalled in a low-velocity
 RADIAL_R0 = 1.5               # full opacity within this many radii of the centre
 RADIAL_R1 = 2.3               # faded to nothing beyond this
 
-# The site mixes faint blue, white and cyan streamlines. The deck uses cyan only,
-# keeping the three tiers purely as an alpha/width hierarchy so the field still has
-# depth, plus the single accent streamline.
+# The site mixes faint blue, white and cyan streamlines plus one orange accent. The
+# deck uses cyan only, keeping the three tiers purely as an alpha/width hierarchy so
+# the field still has depth.
 CYAN = (120, 210, 230)        # --color-cyan
-COLORS = {
-    "dim":    CYAN,
-    "mid":    CYAN,
-    "bright": CYAN,
-    "accent": (255, 140, 70),
-}
-ALPHAS = {"dim": 0.35, "mid": 0.55, "bright": 0.75, "accent": 0.95}
-WIDTHS = {"dim": 0.55, "mid": 0.7, "bright": 1.0, "accent": 1.8}
+COLORS = {"dim": CYAN, "mid": CYAN, "bright": CYAN}
+ALPHAS = {"dim": 0.35, "mid": 0.55, "bright": 0.75}
+WIDTHS = {"dim": 0.55, "mid": 0.7, "bright": 1.0}
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 OUT = os.path.join(HERE, "assets", "hero-streamlines.png")
@@ -203,27 +197,21 @@ def simulate(rng, gu, gv):
     """Advect particles and return their trails, frozen after BURN_IN frames."""
     x0 = FIELD_X0 * W
 
-    def spawn(idx, aged):
-        if idx == 0:                                  # the single accent streamline
-            key = "accent"
-            x = x0 + rng.random() * (W - x0)
-            y = H * 0.1 + rng.random() * (H * 0.5)
-            life = 600 + rng.random() * 400
-        else:
-            r = rng.random()
-            key = "bright" if r < 0.14 else "mid" if r < 0.48 else "dim"
-            # seeded only in the right-hand band; the flow may carry them left,
-            # where the edge ramp fades them out
-            x = x0 + rng.random() * (W - x0)
-            y = rng.random() * H
-            life = 160 + rng.random() * 260
+    def spawn(aged):
+        r = rng.random()
+        key = "bright" if r < 0.14 else "mid" if r < 0.48 else "dim"
+        # seeded only in the right-hand band; the flow may carry them left,
+        # where the edge ramp fades them out
+        x = x0 + rng.random() * (W - x0)
+        y = rng.random() * H
+        life = 160 + rng.random() * 260
         return {"x": x, "y": y, "trail": [(x, y)], "key": key, "life": life,
                 # stagger initial ages so the frozen frame shows a natural mix
                 # of fresh and fading streamlines rather than a synchronised flush
                 "age": rng.random() * life if aged else 0.0,
-                "maxtail": (ACCENT_TAIL_LEN if idx == 0 else TAIL_LEN) * SUBSTEPS}
+                "maxtail": TAIL_LEN * SUBSTEPS}
 
-    ps = [spawn(i, aged=True) for i in range(NUM)]
+    ps = [spawn(aged=True) for _ in range(NUM)]
     h = STEP / SUBSTEPS
 
     for _ in range(BURN_IN):
@@ -235,7 +223,7 @@ def simulate(rng, gu, gv):
             del p["trail"][:-p["maxtail"]]
             if (p["x"] < -30 or p["x"] > W + 30 or p["y"] < -30 or p["y"] > H + 30
                     or p["age"] > p["life"]):
-                ps[i] = spawn(i, aged=False)
+                ps[i] = spawn(aged=False)
     return ps
 
 
@@ -244,7 +232,6 @@ def draw(ps, ax, eddy):
     cx, cy, er, _ = eddy
     x1 = cx
     segs, cols, widths = [], [], []
-    accent = []
     for p in ps:
         tr = p["trail"]
         if len(tr) < MIN_TAIL * SUBSTEPS:
@@ -270,30 +257,12 @@ def draw(ps, ax, eddy):
             radial = q * q * (3.0 - 2.0 * q)
             if radial <= 0.0:
                 continue
-            col = (r, g, b, base * frac * frac * edge * radial)
-            lw = w * 0.72 * LINE_SCALE   # CSS px -> points at the 100-dpi scale
-            if p["key"] == "accent":
-                accent.append((seg, col, lw))
-            else:
-                segs.append(seg); cols.append(col); widths.append(lw)
+            segs.append(seg)
+            cols.append((r, g, b, base * frac * frac * edge * radial))
+            widths.append(w * 0.72 * LINE_SCALE)  # CSS px -> pt at the 100-dpi scale
 
     ax.add_collection(LineCollection(segs, colors=cols, linewidths=widths,
                                      capstyle="round", antialiaseds=True))
-
-    # the accent streamline carries a soft glow on the site (shadowBlur); approximate
-    # it with a few progressively wider, fainter passes underneath the core stroke
-    if accent:
-        # multipliers are modest because LINE_SCALE has already thickened the core
-        # stroke; the site's wider ratios turn the accent into an orange blob here
-        for mult, fade in ((3.2, 0.05), (2.1, 0.09), (1.5, 0.14)):
-            ax.add_collection(LineCollection(
-                [s for s, _, _ in accent],
-                colors=[(c[0], c[1], c[2], c[3] * fade) for _, c, _ in accent],
-                linewidths=[w * mult for _, _, w in accent],
-                capstyle="round", antialiaseds=True))
-        ax.add_collection(LineCollection(
-            [s for s, _, _ in accent], colors=[c for _, c, _ in accent],
-            linewidths=[w for _, _, w in accent], capstyle="round", antialiaseds=True))
 
 
 def main():
