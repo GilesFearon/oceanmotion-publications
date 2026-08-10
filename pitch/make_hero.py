@@ -29,7 +29,7 @@ from matplotlib.collections import LineCollection
 # ---------------------------------------------------------------- config
 # Mirrors the constants at the top of hero.js.
 W, H = 1600.0, 900.0          # logical CSS pixel space the sim runs in
-NUM = 85                      # particles; the site's 180 spread over a full-width
+NUM = 51                      # particles; the site's 180 spread over a full-width
                               # canvas, so packing them into a narrow band crowds it
 TAIL_LEN = 80                 # 2x the site's 40: longer trails give the still the
                               # sense of sweep that motion supplies on the web
@@ -53,9 +53,11 @@ LINE_SCALE = 2.0              # the site's widths are ~1px hairlines at this out
                               # size, which alias into dashes; thicken them
 
 # --- horizontal confinement ---------------------------------------------
-FIELD_X0 = 3.0 / 5.0          # field occupies the right 2/5; left 3/5 stays black
-FIELD_FADE = 0.05             # width of the alpha ramp at that edge, so streamlines
-                              # fade in rather than being guillotined by a hard line
+# The field is faded out by a purely horizontal mask that reaches zero at mid-frame.
+# Crucially the mask plateaus at 1 by the eddy's centre: any mask still rising as it
+# crosses the SSH peak multiplies the peak down on its left flank and not its right,
+# which walks the apparent warm centroid off-centre from the circulation.
+FIELD_X0 = 0.5                # mask reaches zero here — left half is flat ground
 MIN_TAIL = 10                 # drop stubs: a just-respawned particle reads as motion
                               # while animating, but as a speck of dust in a still
 MIN_SPAN = 9.0                # ...likewise a particle stalled in a low-velocity core,
@@ -130,18 +132,20 @@ def sample(grid, nx, ny):
             grid[j0 + 1, i0 + 1] * fx * fy)
 
 
-def background(ssh, w=960, h=540):
+def mask_profile(nx, x1):
+    """Horizontal visibility: 0 at FIELD_X0, smoothstepping to 1 at x1 (the eddy
+    centre) and flat at 1 beyond it, so the masked field peaks where the SSH does."""
+    t = np.clip((nx - FIELD_X0) / max(x1 - FIELD_X0, 1e-6), 0.0, 1.0)
+    return t * t * (3.0 - 2.0 * t)
+
+
+def background(ssh, x1, w=960, h=540):
     """SSH shaded dark navy (low) to warm orange (high), suppressed quadratically
     toward the left edge so the title area stays near-black. Same ramp as hero.js."""
     nx, ny = np.meshgrid(np.linspace(0, 1, w), np.linspace(0, 1, h))
     t = sample(ssh, nx, ny)
     t = (t - t.min()) / (np.ptp(t) or 1.0)
-    # Suppression as on the site, but compressed so it reaches zero at FIELD_X0
-    # rather than at the left edge — everything left of that is flat ground. The
-    # exponent is below the site's 2 because squaring biases the *apparent* warm
-    # centroid toward the right edge, pulling it off the eddy's actual SSH peak.
-    ramp = np.clip((nx - FIELD_X0) / (1.0 - FIELD_X0), 0.0, 1.0)
-    s = t * ramp ** 1.6
+    s = t * mask_profile(nx, x1)
     img = np.empty((h, w, 3), dtype=np.uint8)
     img[..., 0] = (5 + s * 102).astype(np.uint8)     # R:  5 -> 107
     img[..., 1] = (15 + s * 27).astype(np.uint8)     # G: 15 -> 42
@@ -221,9 +225,8 @@ def simulate(rng, gu, gv):
     return ps
 
 
-def draw(ps, ax):
+def draw(ps, ax, x1):
     """Each trail is a run of segments whose alpha ramps quadratically to the head."""
-    x0, fade = FIELD_X0 * W, FIELD_FADE * W
     segs, cols, widths = [], [], []
     accent = []
     for p in ps:
@@ -239,9 +242,9 @@ def draw(ps, ax):
         for j in range(1, n):
             frac = j / n
             seg = [tr[j - 1], tr[j]]
-            # smoothstep the alpha to zero at the left edge of the band
-            e = min(1.0, max(0.0, ((seg[0][0] + seg[1][0]) * 0.5 - x0) / fade))
-            edge = e * e * (3.0 - 2.0 * e)
+            # streamlines fade on the same horizontal profile as the SSH shading
+            edge = float(mask_profile(
+                np.array((seg[0][0] + seg[1][0]) * 0.5 / W), x1))
             if edge <= 0.0:
                 continue
             col = (r, g, b, base * frac * frac * edge)
@@ -280,7 +283,9 @@ def main():
     args = ap.parse_args()
 
     rng = np.random.default_rng(args.seed)
-    ssh = compute_ssh(random_eddies(rng, args.eddies))
+    eddies = random_eddies(rng, args.eddies)
+    x1 = eddies[0][0]                      # mask plateaus at the main eddy's centre
+    ssh = compute_ssh(eddies)
     gu, gv = derive_velocity(ssh)
     ps = simulate(rng, gu, gv)
 
@@ -288,9 +293,9 @@ def main():
     ax = fig.add_axes([0, 0, 1, 1])
     ax.set_xlim(0, W); ax.set_ylim(H, 0)   # y down, as in canvas coords
     ax.axis("off")
-    ax.imshow(background(ssh), extent=(0, W, H, 0), interpolation="bilinear",
+    ax.imshow(background(ssh, x1), extent=(0, W, H, 0), interpolation="bilinear",
               aspect="auto", zorder=0)
-    draw(ps, ax)
+    draw(ps, ax, x1)
 
     os.makedirs(os.path.dirname(args.out), exist_ok=True)
     fig.savefig(args.out, dpi=args.dpi, facecolor="#050f1c")
