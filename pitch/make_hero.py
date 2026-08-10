@@ -61,14 +61,18 @@ MIN_TAIL = 10                 # drop stubs: a just-respawned particle reads as m
 MIN_SPAN = 9.0                # ...likewise a particle stalled in a low-velocity core,
                               # whose whole trail collapses into a few px
 
+# The site mixes faint blue, white and cyan streamlines. The deck uses cyan only,
+# keeping the three tiers purely as an alpha/width hierarchy so the field still has
+# depth, plus the single accent streamline.
+CYAN = (120, 210, 230)        # --color-cyan
 COLORS = {
-    "faint":  (30, 70, 120),
-    "white":  (220, 232, 240),
-    "cyan":   (120, 210, 230),
+    "dim":    CYAN,
+    "mid":    CYAN,
+    "bright": CYAN,
     "accent": (255, 140, 70),
 }
-ALPHAS = {"faint": 0.35, "white": 0.55, "cyan": 0.75, "accent": 0.95}
-WIDTHS = {"faint": 0.55, "white": 0.7, "cyan": 1.0, "accent": 1.8}
+ALPHAS = {"dim": 0.35, "mid": 0.55, "bright": 0.75, "accent": 0.95}
+WIDTHS = {"dim": 0.55, "mid": 0.7, "bright": 1.0, "accent": 1.8}
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 OUT = os.path.join(HERE, "assets", "hero-streamlines.png")
@@ -146,9 +150,22 @@ def background(ssh, w=960, h=540):
 
 
 # ---------------------------------------------------------------- particles
+ASPECT = H / W
+
+
 def velocity(gu, gv, x, y):
+    """Velocity in pixels/frame at a pixel position.
+
+    gu/gv are derivatives with respect to *normalised* coordinates, but particles
+    step through *pixel* space. On a non-square canvas that mismatch means
+        dn/dt = dn/dx (-dn/dy H) + dn/dy (dn/dx W) = (W - H) dn/dx dn/dy != 0
+    so particles drift across SSH contours instead of following them — the flow
+    stops being geostrophic, and the circulation sits offset from the SSH peak.
+    (hero.js has the same issue; it is invisible while everything is moving.)
+    Scaling the y-component by H/W makes the two terms cancel exactly, so n is
+    conserved along a trajectory and streamlines follow the contours."""
     return (float(sample(gu, np.array(x / W), np.array(y / H))),
-            float(sample(gv, np.array(x / W), np.array(y / H))))
+            float(sample(gv, np.array(x / W), np.array(y / H))) * ASPECT)
 
 
 def rk4(gu, gv, x, y, h):
@@ -176,7 +193,7 @@ def simulate(rng, gu, gv):
             life = 600 + rng.random() * 400
         else:
             r = rng.random()
-            key = "cyan" if r < 0.14 else "white" if r < 0.48 else "faint"
+            key = "bright" if r < 0.14 else "mid" if r < 0.48 else "dim"
             # seeded only in the right-hand band; the flow may carry them left,
             # where the edge ramp fades them out
             x = x0 + rng.random() * (W - x0)
