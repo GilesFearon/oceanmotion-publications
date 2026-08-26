@@ -311,8 +311,15 @@ NUM_GIF = 58                  # a little above the still's 51: the fade envelope
 FADE_IN = 80                  # sim frames; >= TAIL_LEN, so a particle only reaches
                               # full opacity once its tail has finished growing
 FADE_OUT = 60
-ACCENT_R = (0.5, 1.2)         # the accent is seeded within this band of eddy radii so
-                              # its orbit stays inside the frame for the whole loop
+GIF_ACCENT = False            # the site's single orange streamline is kept in the
+                              # still but dropped from the loop. Frozen it reads as a
+                              # detail; moving, it is the only bright saturated thing
+                              # in the frame and pulls the eye off the headline — and
+                              # this slide already spends orange on meaning (the
+                              # horizon rule, and "that can't wait" in the title), so
+                              # a second, brighter orange dilutes that as well
+ACCENT_R = (0.5, 1.2)         # when enabled, the accent is seeded within this band of
+                              # eddy radii so its orbit stays in frame for the loop
 GIF_W = 1200                  # output width. GIF is 8-bit and uncompressed per pixel
                               # in the changed region, so resolution costs real bytes
 SUPERSAMPLE = 2               # render at 2x and downsample: at 1200px the trails are
@@ -335,7 +342,7 @@ def integrate_path(gu, gv, x, y, n_steps, h):
     return pts
 
 
-def seed_paths(rng, gu, gv, eddy, n=NUM_GIF):
+def seed_paths(rng, gu, gv, eddy, n=NUM_GIF, accent=GIF_ACCENT):
     """Spawn points, phases and precomputed trajectories for one loop.
 
     Seeded exactly as the still seeds particles — uniformly across the right-hand
@@ -350,7 +357,7 @@ def seed_paths(rng, gu, gv, eddy, n=NUM_GIF):
     h = STEP / SUBSTEPS
     out = []
     for i in range(n):
-        if i == 0:                               # the single accent streamline
+        if accent and i == 0:                    # the single accent streamline
             key = "accent"
             for _ in range(400):
                 x = x0 + rng.random() * (W - x0)

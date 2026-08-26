@@ -50,14 +50,12 @@ MARK_LIGHT = os.path.join(ASSET_DIR, "om-mark-light.png")  # navy + accent, ligh
 # The website's hero flow field. Regenerate (or reroll the composition with a
 # different --seed) via:  python3 make_hero.py [--gif]
 #
-# The GIF is a seamless 6 s loop and is used for the title slide when present;
-# PowerPoint and Google Slides both animate it in presentation mode. Set
-# HERO_ANIMATED = False to fall back to the still — worth doing if the deck is
-# destined for PDF, where only the first frame survives anyway.
-HERO_ANIMATED = True
+# The GIF is a seamless 6 s loop; PowerPoint and Google Slides both animate it in
+# presentation mode. The deck ships BOTH title treatments as slides 1 and 2 so they
+# can be compared in place — delete whichever loses. Speaker notes on each say which
+# is which, since the two are near-identical when frozen.
 HERO_STILL = os.path.join(ASSET_DIR, "hero-streamlines.png")
 HERO_LOOP  = os.path.join(ASSET_DIR, "hero-streamlines.gif")
-HERO = (HERO_LOOP if HERO_ANIMATED and os.path.exists(HERO_LOOP) else HERO_STILL)
 
 # Brand faces, vendored from Google Fonts (both families are OFL/SIL licensed,
 # which permits embedding). Naming a font in a run only states a preference —
@@ -257,27 +255,53 @@ def wordmark(s, left, top, on_dark=True):
 
 
 # ================================================================== 1. TITLE
-s = slide()
-# hero flow field, full bleed — it is opaque and 16:9, so it replaces the flat
-# ABYSS ground entirely. Its left side stays dark, which is where the title sits.
-full_bleed(s, HERO)
-# faint horizon rule
-rect(s, MARGIN, Inches(2.4), Inches(1.6), Pt(2), ACCENT)
-wordmark(s, MARGIN, Inches(0.7), on_dark=True)
+def title_slide(hero, note):
+    """The title slide over a given hero image.
 
-tf = box(s, MARGIN, Inches(2.7), Inches(10.5), Inches(2.8))
-p = tf.paragraphs[0]; p.line_spacing = 1.02
-run(p, "Ocean models, built for\n", font=F_DISPLAY, size=58, color=PAPER)
-p2 = tf.add_paragraph(); p2.line_spacing = 1.02
-run(p2, "decisions ", font=F_DISPLAY, size=58, color=PAPER)
-run(p2, "that can't wait", font=F_DISPLAY, size=58, color=ACCENT, italic=True)
-run(p2, ".", font=F_DISPLAY, size=58, color=PAPER)
+    Built twice, once over the animated loop and once over the still, so the choice
+    can be made on a projector rather than in the abstract. They differ only in the
+    picture: the loop drops the orange accent streamline (moving, it is the only
+    bright saturated thing in the frame and competes with the headline — and this
+    slide already spends orange on the rule and on "that can't wait"), while the
+    still keeps it, where it reads as a detail rather than a distraction.
+    """
+    s = slide()
+    # hero flow field, full bleed — it is opaque and 16:9, so it replaces the flat
+    # ABYSS ground entirely. Its left side stays dark, which is where the title sits.
+    full_bleed(s, hero)
+    # faint horizon rule
+    rect(s, MARGIN, Inches(2.4), Inches(1.6), Pt(2), ACCENT)
+    wordmark(s, MARGIN, Inches(0.7), on_dark=True)
 
-tf = box(s, MARGIN, Inches(5.9), Inches(9), Inches(1))
-p = tf.paragraphs[0]
-run(p, "PITCH DECK", font=F_MONO, size=11, color=CYAN_LT, track=200, caps=True)
-p2 = tf.add_paragraph(); p2.space_before = Pt(6)
-run(p2, f"Prepared for [Client]  ·  {date.today():%B %Y}", font=F_BODY, size=14, color=INK_3)
+    tf = box(s, MARGIN, Inches(2.7), Inches(10.5), Inches(2.8))
+    p = tf.paragraphs[0]; p.line_spacing = 1.02
+    run(p, "Ocean models, built for\n", font=F_DISPLAY, size=58, color=PAPER)
+    p2 = tf.add_paragraph(); p2.line_spacing = 1.02
+    run(p2, "decisions ", font=F_DISPLAY, size=58, color=PAPER)
+    run(p2, "that can't wait", font=F_DISPLAY, size=58, color=ACCENT, italic=True)
+    run(p2, ".", font=F_DISPLAY, size=58, color=PAPER)
+
+    tf = box(s, MARGIN, Inches(5.9), Inches(9), Inches(1))
+    p = tf.paragraphs[0]
+    run(p, "PITCH DECK", font=F_MONO, size=11, color=CYAN_LT, track=200, caps=True)
+    p2 = tf.add_paragraph(); p2.space_before = Pt(6)
+    run(p2, f"Prepared for [Client]  ·  {date.today():%B %Y}",
+        font=F_BODY, size=14, color=INK_3)
+
+    s.notes_slide.notes_text_frame.text = note
+    return s
+
+
+title_slide(HERO_LOOP,
+            "TITLE — OPTION A (animated). Background is a seamless 6 s loop of the "
+            "website's hero flow field, cyan only. Animates in PowerPoint slideshow "
+            "view and in Google Slides present mode; a PDF export freezes frame 1. "
+            "Keep either this slide or option B, not both.")
+title_slide(HERO_STILL,
+            "TITLE — OPTION B (still). Same field frozen, and it keeps the single "
+            "orange accent streamline. Safer over screen share, where slow fine "
+            "detail is what video codecs smear first. "
+            "Keep either this slide or option A, not both.")
 
 
 # ================================================================== 2. CONTENTS
