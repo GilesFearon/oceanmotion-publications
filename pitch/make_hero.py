@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """
-Ocean Motion Analytics — static hero streamline still for the pitch deck.
+Ocean Motion Analytics — hero streamline artwork for the pitch deck, as either a
+static still (default) or a seamlessly repeating GIF (--gif).
 
 A faithful port of the website's animated hero (oceanmotion-web/hero.js): particles
 trace geostrophic streamlines over a sea surface height field built from Gaussian
@@ -12,9 +13,10 @@ The sim runs in the website's logical pixel space (1600x900 CSS px) and is rende
 at higher dpi, so trail lengths stay in the same proportion to the frame as they are
 on the site — resolution changes the sharpness, not the composition.
 
-Regenerate:  python3 make_hero.py [--seed N] [--dpi N]
-Output:      assets/hero-streamlines.png
-Requires:    numpy, matplotlib
+Regenerate:  python3 make_hero.py [--seed N] [--dpi N]          -> the still
+             python3 make_hero.py --gif [--seed N] [--frames N]  -> the loop
+Output:      assets/hero-streamlines.png / assets/hero-streamlines.gif
+Requires:    numpy, matplotlib (and Pillow for --gif)
 """
 
 import argparse
@@ -290,13 +292,248 @@ def draw(ps, ax, eddy):
             linewidths=[w for _, _, w in accent], capstyle="round", antialiaseds=True))
 
 
+# ---------------------------------------------------------------- animation
+# A repeating GIF rather than a still. The hard part of looping a particle field is
+# the seam: a simulation run for L frames does not come back to its starting state,
+# so the wrap jumps. The trick used here is that the velocity field is *steady* —
+# a particle's entire path is fixed by where it starts — so each path is integrated
+# once, up front, and a frame is just a window slid along it. Give every particle
+# the same life L, stagger their birth phases evenly, and fade each in and out over
+# that life, and the state at frame t+L is identical to the state at frame t by
+# construction. The loop is seamless with no crossfade and so no ghosting.
+LOOP_FRAMES = 120             # GIF frames in one loop
+FPS = 20                      # -> a 6.0 s loop
+ADVANCE = 2                   # sim frames per GIF frame (the sim's native rate is
+                              # the site's ~60fps, which is too brisk for a backdrop)
+NUM_GIF = 58                  # a little above the still's 51: the fade envelope means
+                              # each particle is at full strength only part of the
+                              # time, so the frame reads sparser at equal NUM
+FADE_IN = 80                  # sim frames; >= TAIL_LEN, so a particle only reaches
+                              # full opacity once its tail has finished growing
+FADE_OUT = 60
+ACCENT_R = (0.5, 1.2)         # the accent is seeded within this band of eddy radii so
+                              # its orbit stays inside the frame for the whole loop
+GIF_W = 1200                  # output width. GIF is 8-bit and uncompressed per pixel
+                              # in the changed region, so resolution costs real bytes
+SUPERSAMPLE = 2               # render at 2x and downsample: at 1200px the trails are
+                              # ~1px hairlines, which alias badly without it
+GIF_OUT = os.path.join(HERE, "assets", "hero-streamlines.gif")
+
+
+def smoothstep(t):
+    t = np.clip(t, 0.0, 1.0)
+    return t * t * (3.0 - 2.0 * t)
+
+
+def integrate_path(gu, gv, x, y, n_steps, h):
+    """The whole trajectory of one particle, at sub-step resolution."""
+    pts = np.empty((n_steps + 1, 2))
+    pts[0] = (x, y)
+    for k in range(n_steps):
+        x, y = rk4(gu, gv, x, y, h)
+        pts[k + 1] = (x, y)
+    return pts
+
+
+def seed_paths(rng, gu, gv, eddy, n=NUM_GIF):
+    """Spawn points, phases and precomputed trajectories for one loop.
+
+    Seeded exactly as the still seeds particles — uniformly across the right-hand
+    band, with no filtering here. Culling stalled or out-of-reach particles at spawn
+    instead concentrates whatever survives onto the fast orbits near the eddy, and
+    the frame fills up with complete concentric rings. The still's MIN_TAIL/MIN_SPAN
+    tests are applied per frame below, where they mean the same thing they do there.
+    """
+    cx, cy, er, _ = eddy
+    x0 = FIELD_X0 * W
+    life = LOOP_FRAMES * ADVANCE                 # sim frames
+    h = STEP / SUBSTEPS
+    out = []
+    for i in range(n):
+        if i == 0:                               # the single accent streamline
+            key = "accent"
+            for _ in range(400):
+                x = x0 + rng.random() * (W - x0)
+                y = H * 0.1 + rng.random() * (H * 0.5)
+                if ACCENT_R[0] <= np.hypot(x / W - cx, y / H - cy) / er <= ACCENT_R[1]:
+                    break
+        else:
+            r = rng.random()
+            key = "bright" if r < 0.14 else "mid" if r < 0.48 else "dim"
+            x = x0 + rng.random() * (W - x0)
+            y = rng.random() * H
+        out.append({
+            "path": integrate_path(gu, gv, x, y, life * SUBSTEPS, h), "key": key,
+            # phases spread evenly (plus jitter) so births are staggered rather
+            # than arriving in visible waves
+            # the accent is pinned half a life out of phase so it is at full
+            # strength in frame 0 — the frame a PDF export or a thumbnail freezes on
+            "phase": (LOOP_FRAMES / 2 if key == "accent"
+                      else (i * LOOP_FRAMES / n + rng.random() * 2.0) % LOOP_FRAMES),
+            "maxtail": (ACCENT_TAIL_LEN if key == "accent" else TAIL_LEN) * SUBSTEPS,
+        })
+    return out
+
+
+def frame_segments(paths, frame, eddy):
+    """Segments, colours and widths for one frame — the still's draw() masking,
+    vectorised, plus the per-particle fade-in/out envelope that makes the loop close."""
+    cx, cy, er, _ = eddy
+    x1, life = cx, LOOP_FRAMES * ADVANCE
+    cyan, accent = [], []
+    for p in paths:
+        age = ((frame - p["phase"]) % LOOP_FRAMES) * ADVANCE
+        env = smoothstep(age / FADE_IN) * smoothstep((life - age) / FADE_OUT)
+        if env <= 0.01:
+            continue
+        k = int(age * SUBSTEPS)
+        q = p["path"][max(0, k - p["maxtail"]):k + 1]
+        if len(q) < MIN_TAIL * SUBSTEPS:
+            continue
+        if max(np.ptp(q[:, 0]), np.ptp(q[:, 1])) < MIN_SPAN:
+            continue                             # stalled in a low-velocity core
+        a, b = q[:-1], q[1:]
+        mid = 0.5 * (a + b)
+        m = len(a)
+        frac = np.arange(1, m + 1) / m
+        edge = mask_profile(mid[:, 0] / W, x1)
+        d = np.hypot(mid[:, 0] / W - cx, mid[:, 1] / H - cy) / er
+        radial = smoothstep((RADIAL_R1 - d) / (RADIAL_R1 - RADIAL_R0))
+        alpha = ALPHAS[p["key"]] * frac * frac * edge * radial * env
+        keep = alpha > 0.006
+        if not keep.any():
+            continue
+        r, g, bl = (c / 255.0 for c in COLORS[p["key"]])
+        segs = np.stack([a[keep], b[keep]], axis=1)
+        cols = np.empty((int(keep.sum()), 4))
+        cols[:, 0], cols[:, 1], cols[:, 2] = r, g, bl
+        cols[:, 3] = alpha[keep]
+        lw = WIDTHS[p["key"]] * 0.72 * LINE_SCALE
+        (accent if p["key"] == "accent" else cyan).append((segs, cols, lw))
+    return cyan, accent
+
+
+def draw_frame(ax, paths, frame, eddy):
+    for c in list(ax.collections):
+        c.remove()
+    cyan, accent = frame_segments(paths, frame, eddy)
+    if cyan:
+        segs = np.concatenate([s for s, _, _ in cyan])
+        cols = np.concatenate([c for _, c, _ in cyan])
+        lws = np.concatenate([np.full(len(s), w) for s, _, w in cyan])
+        ax.add_collection(LineCollection(segs, colors=cols, linewidths=lws,
+                                         capstyle="round", antialiaseds=True))
+    if accent:
+        segs = np.concatenate([s for s, _, _ in accent])
+        cols = np.concatenate([c for _, c, _ in accent])
+        lws = np.concatenate([np.full(len(s), w) for s, _, w in accent])
+        for mult, fade in ((3.2, 0.05), (2.1, 0.09), (1.5, 0.14)):
+            glow = cols.copy()
+            glow[:, 3] *= fade
+            ax.add_collection(LineCollection(segs, colors=glow, linewidths=lws * mult,
+                                             capstyle="round", antialiaseds=True))
+        ax.add_collection(LineCollection(segs, colors=cols, linewidths=lws,
+                                         capstyle="round", antialiaseds=True))
+
+
+def dilate(mask, r=1):
+    for _ in range(r):
+        mask = (mask | np.roll(mask, 1, 0) | np.roll(mask, -1, 0)
+                     | np.roll(mask, 1, 1) | np.roll(mask, -1, 1))
+    return mask
+
+
+def encode_gif(frames, plate, out, fps=FPS):
+    """Palette-quantise and write the loop.
+
+    Two things make this ~5x smaller than the obvious encode, both of them leaning
+    on the SSH plate being static:
+
+    1. Dither only where the streamlines actually are. GIF is 8-bit, and the eddy's
+       gradient banks visibly without dithering, but Floyd-Steinberg diffuses each
+       moving line's error right and down across the rest of the scanline: 0.9% of
+       pixels genuinely change between frames, and undithered that stays 0.3%, but
+       dithered it becomes 11%. Quantising the bare plate once and splicing in the
+       per-frame quantisation only under the lines keeps the dither where it earns
+       its keep and leaves the rest of the frame bit-identical throughout.
+    2. Write frames as deltas. Pillow's optimize= only crops each frame to a bounding
+       box, and the lines sweep half the width, so that saves almost nothing. Marking
+       unchanged pixels with a reserved transparent index and leaving disposal at
+       "do not dispose" makes the encoder skip them properly instead.
+    """
+    from PIL import Image
+
+    imgs = [Image.fromarray(f) for f in frames]
+    idx = np.linspace(0, len(imgs) - 1, min(10, len(imgs))).astype(int)
+    stack = Image.fromarray(np.concatenate([np.asarray(imgs[i]) for i in idx]))
+    method = getattr(Image, "Quantize", Image).MEDIANCUT
+    # 255 content colours; the last index is reserved as "same as the frame before"
+    pal = stack.quantize(colors=255, method=method)
+    flat = np.asarray(Image.fromarray(plate).quantize(palette=pal, dither=1))
+
+    keyed = []
+    for f, im in zip(frames, imgs):
+        touched = dilate(np.abs(f.astype(np.int16)
+                                - plate.astype(np.int16)).max(axis=2) > 0)
+        keyed.append(np.where(touched, np.asarray(im.quantize(palette=pal, dither=1)),
+                              flat).astype(np.uint8))
+
+    palette = pal.getpalette()[:255 * 3] + [0, 0, 0]
+    out_imgs = []
+    for i, a in enumerate(keyed):
+        a = a.copy()
+        if i:
+            a[a == keyed[i - 1]] = 255
+        p = Image.fromarray(a, mode="P")
+        p.putpalette(palette)
+        out_imgs.append(p)
+
+    out_imgs[0].save(out, save_all=True, append_images=out_imgs[1:], loop=0,
+                     duration=int(round(1000 / fps)), disposal=1,
+                     transparency=255, optimize=False)
+    return out
+
+
+def render_gif(rng, ssh, gu, gv, eddy, out, frames=LOOP_FRAMES):
+    from PIL import Image
+    paths = seed_paths(rng, gu, gv, eddy)
+    gif_h = int(round(GIF_W * H / W))
+    dpi = GIF_W * SUPERSAMPLE / (W / 100.0)
+    fig = plt.figure(figsize=(W / 100.0, H / 100.0), dpi=dpi)
+    fig.patch.set_facecolor("#050f1c")
+    ax = fig.add_axes([0, 0, 1, 1])
+    ax.set_xlim(0, W); ax.set_ylim(H, 0)
+    ax.axis("off")
+    ax.imshow(background(ssh, eddy), extent=(0, W, H, 0), interpolation="bilinear",
+              aspect="auto", zorder=0)
+
+    def grab():
+        fig.canvas.draw()
+        buf = np.asarray(fig.canvas.buffer_rgba())[..., :3]
+        return np.asarray(Image.fromarray(buf).resize((GIF_W, gif_h), Image.LANCZOS))
+
+    plate = grab()                     # the bare SSH field, before any streamlines
+    rgb = []
+    for t in range(frames):
+        draw_frame(ax, paths, t, eddy)
+        rgb.append(grab())
+    plt.close(fig)
+
+    encode_gif(rgb, plate, out)
+    return out, gif_h
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--seed", type=int, default=7, help="field/particle RNG seed")
     ap.add_argument("--dpi", type=int, default=180, help="output dpi (180 -> 2880px wide)")
     ap.add_argument("--eddies", type=int, default=NUM_EDDIES,
                     help="eddies in the field; fewer = simpler background")
-    ap.add_argument("--out", default=OUT)
+    ap.add_argument("--gif", action="store_true",
+                    help="render the seamless looping GIF instead of the still")
+    ap.add_argument("--frames", type=int, default=LOOP_FRAMES,
+                    help="GIF frames per loop (with --gif)")
+    ap.add_argument("--out", default=None)
     args = ap.parse_args()
 
     rng = np.random.default_rng(args.seed)
@@ -304,8 +541,18 @@ def main():
     eddy = eddies[0]                       # mask plateaus at the main eddy's centre
     ssh = compute_ssh(eddies)
     gu, gv = derive_velocity(ssh)
-    ps = simulate(rng, gu, gv)
 
+    if args.gif:
+        out = args.out or GIF_OUT
+        os.makedirs(os.path.dirname(out), exist_ok=True)
+        out, gif_h = render_gif(rng, ssh, gu, gv, eddy, out, args.frames)
+        print("wrote %s (seed %d, %dx%d, %d frames @ %d fps = %.1f s loop, %.1f MB)"
+              % (out, args.seed, GIF_W, gif_h, args.frames, FPS,
+                 args.frames / FPS, os.path.getsize(out) / 1e6))
+        return
+
+    out = args.out or OUT
+    ps = simulate(rng, gu, gv)
     fig = plt.figure(figsize=(W / 100.0, H / 100.0), dpi=100)
     ax = fig.add_axes([0, 0, 1, 1])
     ax.set_xlim(0, W); ax.set_ylim(H, 0)   # y down, as in canvas coords
@@ -314,11 +561,11 @@ def main():
               aspect="auto", zorder=0)
     draw(ps, ax, eddy)
 
-    os.makedirs(os.path.dirname(args.out), exist_ok=True)
-    fig.savefig(args.out, dpi=args.dpi, facecolor="#050f1c")
+    os.makedirs(os.path.dirname(out), exist_ok=True)
+    fig.savefig(out, dpi=args.dpi, facecolor="#050f1c")
     plt.close(fig)
     print("wrote %s (seed %d, %d px wide)"
-          % (args.out, args.seed, int(W / 100.0 * args.dpi)))
+          % (out, args.seed, int(W / 100.0 * args.dpi)))
 
 
 if __name__ == "__main__":

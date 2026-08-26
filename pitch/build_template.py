@@ -47,9 +47,17 @@ ASSET_DIR  = os.path.join(HERE, "assets")
 MARK_DARK  = os.path.join(ASSET_DIR, "om-mark-dark.png")   # cyan + accent, dark grounds
 MARK_LIGHT = os.path.join(ASSET_DIR, "om-mark-light.png")  # navy + accent, light grounds
 
-# Static still of the website's animated hero flow field. Regenerate (or reroll the
-# composition with a different --seed) via:  python3 make_hero.py
-HERO = os.path.join(ASSET_DIR, "hero-streamlines.png")
+# The website's hero flow field. Regenerate (or reroll the composition with a
+# different --seed) via:  python3 make_hero.py [--gif]
+#
+# The GIF is a seamless 6 s loop and is used for the title slide when present;
+# PowerPoint and Google Slides both animate it in presentation mode. Set
+# HERO_ANIMATED = False to fall back to the still — worth doing if the deck is
+# destined for PDF, where only the first frame survives anyway.
+HERO_ANIMATED = True
+HERO_STILL = os.path.join(ASSET_DIR, "hero-streamlines.png")
+HERO_LOOP  = os.path.join(ASSET_DIR, "hero-streamlines.gif")
+HERO = (HERO_LOOP if HERO_ANIMATED and os.path.exists(HERO_LOOP) else HERO_STILL)
 
 # Brand faces, vendored from Google Fonts (both families are OFL/SIL licensed,
 # which permits embedding). Naming a font in a run only states a preference —
