@@ -33,3 +33,13 @@ __pycache__/
 # Local notes
 SCRATCH*
 .claude/
+
+# Generated figure artefacts — the generators are committed, the outputs are not.
+# Rebuild with pitch/make_model_chain.py (needs the model output on this machine)
+# and pitch/make_chain_deck.py.
+pitch/assets/chain-*.npz
+pitch/assets/chain-*.png
+pitch/assets/chain-*.gif
+pitch/assets/tau-jan2022.npz
+pitch/assets/turbidity-schematic-*.png
+pitch/chain-module.pptx
