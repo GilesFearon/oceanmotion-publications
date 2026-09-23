@@ -109,6 +109,18 @@ def embed_fonts(prs, families=None):
 
 
 # ------------------------------------------------------------------ shapes
+def _emu(v):
+    """Coerce a coordinate to whole EMU.
+
+    OOXML types every offset and extent as xsd:long, and python-pptx writes
+    whatever it is handed. A stray Python float -- `Inches(2) / 2` is a float,
+    not an Emu -- lands in the XML as x="5463539.5", which LibreOffice tolerates
+    and PowerPoint and Google Slides both reject outright, with no indication of
+    which element is at fault. Every helper here rounds, so arithmetic on
+    positions cannot silently produce a file that will not open."""
+    return int(round(v))
+
+
 def flatten(shape):
     """Drop the autoshape's themed <p:style> (it carries an effectRef shadow) so
     the shape renders perfectly flat, matching the website."""
@@ -141,10 +153,13 @@ def full_bleed(s, path):
 
 
 def picture(s, path, left, top, **kw):
-    return s.shapes.add_picture(path, left, top, **kw)
+    kw = {k: (_emu(v) if k in ("width", "height") else v)
+          for k, v in kw.items()}
+    return s.shapes.add_picture(path, _emu(left), _emu(top), **kw)
 
 
 def rect(s, left, top, w, h, color, line=None):
+    left, top, w, h = (_emu(v) for v in (left, top, w, h))
     r = s.shapes.add_shape(MSO_SHAPE.RECTANGLE, left, top, w, h)
     r.fill.solid(); r.fill.fore_color.rgb = color
     if line is None:
@@ -160,6 +175,7 @@ def spacing(run_, centipoints):
 
 
 def box(s, left, top, w, h, anchor=MSO_ANCHOR.TOP):
+    left, top, w, h = (_emu(v) for v in (left, top, w, h))
     tb = s.shapes.add_textbox(left, top, w, h)
     tf = tb.text_frame
     tf.word_wrap = True
@@ -194,3 +210,71 @@ def eyebrow(s, left, top, text, color=INK_2, w=Inches(6)):
 def glyph(s, left, top, height, on_dark=True):
     return s.shapes.add_picture(MARK_DARK if on_dark else MARK_LIGHT,
                                 left, top, height=height)
+
+
+def arrow(s, x0, y0, x1, y1, color=INK_3, width=Pt(1.25), head="triangle"):
+    """Straight connector with an arrowhead.
+
+    python-pptx exposes connectors but not line-end decoration, so the head is
+    written onto the line's <a:ln> directly. Used by the chain schematic, which
+    is drawn as native shapes rather than as one flat image so the boxes and
+    arrows can be nudged in PowerPoint."""
+    from pptx.enum.shapes import MSO_CONNECTOR
+    x0, y0, x1, y1 = (_emu(v) for v in (x0, y0, x1, y1))
+    cxn = s.shapes.add_connector(MSO_CONNECTOR.STRAIGHT, x0, y0, x1, y1)
+    cxn.line.color.rgb = color
+    cxn.line.width = width
+    ln = cxn.line._get_or_add_ln()
+    tail = ln.makeelement(qn('a:tailEnd'),
+                          {'type': head, 'w': 'med', 'len': 'med'})
+    ln.append(tail)
+    return cxn
+
+
+def node_box(s, left, top, w, h, img=None, label=None, sub=None,
+             edge=RULE, label_size=11):
+    left, top, w, h = (_emu(v) for v in (left, top, w, h))
+    """A labelled box for the chain schematic: optional thumbnail, name above,
+    caption below. Every part is a separate shape, so the whole diagram stays
+    editable on the slide."""
+    r = rect(s, left, top, w, h, PAPER, line=edge)
+    if img:
+        pad = Pt(4)
+        s.shapes.add_picture(img, left + pad, top + pad,
+                             width=w - 2 * pad, height=h - 2 * pad)
+    if label:
+        tf = box(s, left, top - Inches(0.30), w + Inches(1.2), Inches(0.28))
+        run(tf.paragraphs[0], label, font=F_BODY, size=label_size, color=INK)
+    if sub:
+        tf = box(s, left, top + h + Inches(0.06), w + Inches(1.2), Inches(0.26))
+        run(tf.paragraphs[0], sub, font=F_MONO, size=8.5, color=INK_3)
+    return r
+
+
+def gradient_text(p, text, c_from, c_to, font, size):
+    """Stand-in for the website's `linear-gradient(90deg, ...)` + `background-clip:
+    text` on .wordmark__name, by interpolating a solid colour per character.
+
+    PowerPoint can do a true gradient text fill, but Google Slides drops it on
+    import and flattens the text to one colour -- so solid runs are used instead.
+    They survive every renderer. The cost is that colour steps with character
+    index rather than x-position, and kerning is not applied between runs; at
+    wordmark size neither is perceptible."""
+    n = len(text)
+    for i, ch in enumerate(text):
+        t = i / (n - 1) if n > 1 else 0.0
+        color = RGBColor(*(round(a + (b - a) * t) for a, b in zip(c_from, c_to)))
+        run(p, ch, font=font, size=size, color=color)
+
+
+def wordmark(s, left, top, on_dark=True):
+    """The site header lockup: eddy mark, then name + suffix."""
+    g_h = Inches(0.46)
+    glyph(s, _emu(left - Inches(0.05)), _emu(top - Inches(0.03)), g_h, on_dark)
+    tf = box(s, left + g_h, top, Inches(6), Inches(0.5))
+    p = tf.paragraphs[0]
+    grad = (PAPER, CYAN_LT) if on_dark else (INK, NAVY_MID)
+    suf_c = CYAN_LT if on_dark else INK_2
+    gradient_text(p, "Ocean Motion", grad[0], grad[1], F_DISPLAY, 22)
+    run(p, " ", font=F_DISPLAY, size=22, color=grad[1])
+    run(p, "ANALYTICS", font=F_MONO, size=10, color=suf_c, track=220, caps=True)
