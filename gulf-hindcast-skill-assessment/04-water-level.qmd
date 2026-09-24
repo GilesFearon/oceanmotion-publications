@@ -27,6 +27,26 @@ Skill stats per station: bias, RMSE, R, SI -- both for predicted-tide
 amplitude/phase agreement and for non-tidal residual correlation.
 
 Target length: 3--4 pages.
+
+METHOD -- decided 2026-09-24, must match the operational forecast
+(authoritative note: oceanmotion-models/ops/postprocess/water_level_method.md):
+- Gauge, CROCO and MERCATOR are each fitted over the gauge's own record period
+  with the same utide.solve(trend=False) call; residual = series - its fit.
+  Not the nine-year model fit, and never a trend (records too short: a trend
+  fit at Salmiya puts a 2026 tide 1.5 m low).
+- Annual constituent (SA) depends on record length: Majis (14 months) has SA
+  in all three fits, so the annual cycle is in the tide; Salmiya (9 months)
+  has it in none, so the annual cycle is in all three residuals and the
+  models must reproduce it. Say this explicitly in the chapter.
+- MERCATOR gets the inverse barometer (ERA5 msl) before its fit; it is not
+  forced by pressure, and at Salmiya the annual cycle is mostly the IB response.
+- Numbers (residual r / RMSE, full gauge records): Salmiya CROCO 0.88 / 8.7 cm,
+  MERCATOR+IB 0.93 / 6.9, mean 0.94 / 6.5; Majis 0.60 / 6.0, 0.77 / 4.3,
+  0.74 / 4.6. Predicted tide: Majis amplitudes within ~2 cm, ~25 min lag on
+  every constituent (check the hourly-average timestamp convention); Salmiya
+  M2 -5.5 cm, lag 1-1.5 h.
+- The plot_residuals_MERCATOR_pres_*.jpg figures were regenerated on this
+  method; the March 2026 versions quoted residual stats that predate it.
 -->
 
 ## Stations {#sec-water-level-stations}
