@@ -250,73 +250,134 @@ def label(s, left, top, width, text, color=INK_2, size=9, align=PP_ALIGN.LEFT,
     return tf
 
 
+def dashboard_panel(s):
+    """Left column of the dashboard slide: the user's inputs as a settings
+    card, then the two verdicts. Every number comes from wl-dashboard.json,
+    written by make_water_levels.py alongside the figure, so the words cannot
+    drift from the picture."""
+    import json
+    with open(asset("wl-dashboard.json")) as fh:
+        v = json.load(fh)
+    x, w = MARGIN, Inches(5.05)
+    top = Inches(2.62)
+    dk.rect(s, x, top, w, Inches(2.40), NAVY_MID)
+    tf = dk.box(s, x + Inches(0.28), top + Inches(0.20), w - Inches(0.5),
+                Inches(0.3))
+    dk.run(tf.paragraphs[0], "Your vessel and berth", font=F_MONO, size=9,
+           color=CYAN, track=160, caps=True)
+    rows = [("berth", "Salmiya (illustrative)"),
+            ("draught", f"{v['draught']:.1f} m"),
+            ("dredged depth", f"{v['depth']:.1f} m below datum"),
+            ("required UKC", f"{v['required']:.2f} m"),
+            ("wave allowance", f"{v['wave_k']:g} × Hs"),
+            ("alongside", f"{v['window_hours']} h from {v['requested'][0]}"),
+            ("datum", "mean sea level")]
+    tf = dk.box(s, x + Inches(0.28), top + Inches(0.56), w - Inches(0.5),
+                Inches(1.8))
+    for n, (key, val) in enumerate(rows):
+        p = tf.paragraphs[0] if n == 0 else tf.add_paragraph()
+        p.space_before = Pt(0 if n == 0 else 3)
+        dk.run(p, f"{key.upper():<16}", font=F_MONO, size=8.5, color=INK_3,
+               track=40)
+        dk.run(p, val, font=F_MONO, size=10.5, color=PAPER)
+
+    red, green = RGBColor(0xff, 0x7b, 0x6e), RGBColor(0x6f, 0xcf, 0x97)
+    verdicts = [
+        (red if not v["requested_ok"] else green,
+         "Requested window  ·  " + ("not safe" if not v["requested_ok"]
+                                    else "safe"),
+         f"{v['requested'][0]} – {v['requested'][1]}: UKC falls to "
+         f"{v['requested_min_ukc_lower']:+.2f} m at {v['requested_min_at']} "
+         f"(lower 95%). The predicted tide alone says "
+         f"{v['requested_min_ukc_tide_only']:.2f} m."),
+    ]
+    if v["next_safe"]:
+        verdicts.append((green, "Next safe window",
+                         f"{v['next_safe'][0]} – {v['next_safe'][1]}: lowest "
+                         f"UKC {v['next_safe_min_ukc_lower']:.2f} m."))
+    y = top + Inches(2.60)
+    for c, head, body in verdicts:
+        tf = dk.box(s, x, y, w, Inches(0.95))
+        dk.run(tf.paragraphs[0], head, font=F_MONO, size=9.5, color=c,
+               track=120, caps=True)
+        p = tf.add_paragraph()
+        p.space_before = Pt(4)
+        p.line_spacing = 1.25
+        dk.run(p, body, font=F_BODY, size=12, color=CYAN_LT)
+        y += Inches(0.95)
+    notes(s, "Illustrative. Salmiya, 13-19 Dec 2023, replayed as if the "
+             "forecast were issued at 00:00 on 13 Dec: gauge predicted tide, "
+             "CROCO and MERCATOR + air pressure residuals, and the 95% band "
+             "from their operational RMSDs "
+             f"({v['rmsd_croco'] * 100:.1f} and {v['rmsd_mercator'] * 100:.1f} "
+             "cm) - the live handler's arithmetic. Observed water level shown "
+             "up to NOW only. The wave series at the berth is invented (there "
+             "is no wave hindcast at Salmiya for Dec 2023); the allowance is "
+             f"{v['wave_k']:g} x Hs. Available UKC = dredged depth + water "
+             "level (lower 95%) - draught - wave allowance. The vessel and "
+             "berth numbers are invented; levels are about mean sea level "
+             "(mean of the gauge predicted tide) - a real deployment uses the "
+             "port's chart datum. The next safe window is the earliest "
+             f"{v['window_hours']}-hour stretch from the requested start in "
+             "which the lower-95% UKC stays above the requirement throughout. "
+             f"Forecast mean alone gives {v['requested_min_ukc_mean']:.2f} m "
+             "in the requested window.")
+
+
 # ------------------------------------------------------------------ 02
-def ukc_slide(prs):
-    """UKC as a water level budget, drawn as native shapes so every level and
-    label can be moved in the room.
-
-    Drawn as a set-down: the water sits below the tide-table level, so the
-    clearance the passage plan counted on is not all there. That is the one
-    case the rest of the deck is about."""
-    s = new_slide(prs)
-    rail(s, 4)
-    desal.headline(s, MARGIN, Inches(1.20), Inches(11.4),
-                   "Under-keel clearance is a water level budget.", size=34)
-
-    lx, lw = MARGIN, Inches(1.45)                  # level labels, right-aligned
-    x0, x1 = Inches(2.50), Inches(6.20)            # water
-    y_tt, y_ws, y_cd = Inches(3.00), Inches(3.42), Inches(4.20)
-    y_keel, y_sb, y_bed = Inches(5.40), Inches(6.02), Inches(6.42)
+def ukc_diagram(s, top=Inches(2.05)):
+    """UKC as a budget, drawn as native shapes so every level and label can be
+    moved in the room: on the water side the predicted tide and the residual
+    (drawn as a set-down, the case this slide is about); on the ship side the
+    allowances taken off the static draught before any clearance is left --
+    squat, wave response, heel and trim. Other terms a passage plan carries
+    (water density, survey and siltation tolerance) are in the notes."""
+    oy = top - Inches(2.05)                       # vertical offset
+    Y = lambda v: Inches(v) + oy
+    lx, lw = MARGIN, Inches(1.30)                 # level labels, right-aligned
+    x0, x1 = Inches(2.32), Inches(5.05)           # water
+    hx0, hx1 = Inches(2.62), Inches(4.12)         # hull
+    y_pt, y_ws, y_cd = Y(2.55), Y(2.92), Y(3.55)
+    y_keel, y_sb, y_bed = Y(4.20), Y(5.95), Y(6.30)
 
     dk.rect(s, x0, y_ws, x1 - x0, y_sb - y_ws, RGBColor(0xd6, 0xea, 0xee))
     dk.rect(s, x0, y_sb, x1 - x0, y_bed - y_sb, RGBColor(0xe0, 0xd2, 0xae))
-
-    line(s, x0, y_tt, x1, y_tt, INK_3, Pt(1.25), MSO_LINE_DASH_STYLE.DASH)
+    line(s, x0, y_pt, x1, y_pt, INK_3, Pt(1.25), MSO_LINE_DASH_STYLE.DASH)
     line(s, x0, y_ws, x1, y_ws, NAVY, Pt(1.75))
     line(s, x0, y_cd, x1, y_cd, INK_3, Pt(0.9), MSO_LINE_DASH_STYLE.ROUND_DOT)
-
-    for y, text, c in ((y_tt, "tide table", INK_3),
+    for y, text, c in ((y_pt, "predicted tide", INK_3),
                        (y_ws, "actual water", NAVY),
                        (y_cd, "chart datum", INK_3),
                        (y_sb, "dredged depth", INK_2)):
-        label(s, lx, y - Inches(0.13), lw, text, color=c, align=PP_ALIGN.RIGHT)
+        label(s, lx, y - Inches(0.13), lw, text, color=c, align=PP_ALIGN.RIGHT,
+              size=8.5)
 
-    # the hull: an inverted trapezoid, drawn over the levels it sits in
     hull = s.shapes.add_shape(MSO_SHAPE.FLOWCHART_MANUAL_OPERATION,
-                              Inches(3.00), Inches(2.62), Inches(2.10),
-                              y_keel - Inches(2.62))
+                              hx0, Y(2.20), hx1 - hx0, y_keel - Y(2.20))
     hull.fill.solid(); hull.fill.fore_color.rgb = NAVY_MID
     hull.line.fill.background()
     dk.flatten(hull)
 
-    # clearance, under the keel
-    cx = Inches(4.05)
-    line(s, cx, y_keel + Pt(2), cx, y_sb - Pt(2), ACCENT, Pt(1.5),
+    # allowances under the keel, then what is left
+    bands = [("squat", Y(4.20), Y(4.52), RGBColor(0xff, 0xd9, 0xc7)),
+             ("wave response", Y(4.52), Y(4.94), RGBColor(0x9f, 0xd2, 0xdc)),
+             ("heel & trim", Y(4.94), Y(5.20), RGBColor(0xe6, 0xdc, 0xc4))]
+    for name, a, b, c in bands:
+        dk.rect(s, hx0, a, hx1 - hx0, b - a, c)
+        label(s, hx1 + Inches(0.10), (a + b) / 2 - Inches(0.13), Inches(1.55),
+              name, color=INK_2, size=8.5)
+    cx = (hx0 + hx1) / 2
+    line(s, cx, Y(5.20) + Pt(2), cx, y_sb - Pt(2), ACCENT, Pt(1.5),
          heads=("head", "tail"))
-    label(s, cx + Inches(0.12), y_keel + Inches(0.18), Inches(1.9),
-          "under-keel clearance", color=ACCENT, size=9)
+    label(s, hx1 + Inches(0.10), Y(5.44), Inches(1.55), "net clearance",
+          color=ACCENT, size=8.5)
 
     # the residual, beside the ship
-    rx = Inches(5.62)
-    line(s, rx, y_tt + Pt(2), rx, y_ws - Pt(2), ACCENT, Pt(1.5),
+    rx = Inches(4.62)
+    line(s, rx, y_pt + Pt(2), rx, y_ws - Pt(2), ACCENT, Pt(1.5),
          heads=("head", "tail"))
-    label(s, rx + Inches(0.10), y_tt - Inches(0.44), Inches(1.3),
-          "residual", color=ACCENT, size=9)
-
-    desal.bullets(s, Inches(7.10), Inches(2.72), Inches(5.3), [
-        "Tide tables give you the astronomical tide, years ahead.",
-        "They say nothing about the non-tidal residual: wind set-up and "
-        "set-down, air pressure, and the slow sloshing of the Gulf itself.",
-        "A set-down at low water is clearance the passage plan counted on and "
-        "does not have.",
-        "The model forecasts tide and residual together, hourly, with the "
-        "waves that drive vessel motion alongside.",
-    ], size=14)
-    notes(s, "The drawing is a set-down: the water is below the tide-table "
-             "level, so the UKC in the passage plan is not all there. Squat and "
-             "wave response are the other two terms of the budget; the wave "
-             "model on the previous slide covers the second.")
-    return s
+    label(s, rx - Inches(0.35), y_pt - Inches(0.40), Inches(1.2), "residual",
+          color=ACCENT, size=8.5)
 
 
 def tide_slide(prs):
@@ -332,8 +393,7 @@ def tide_slide(prs):
                 [("Majis", "6 Feb 2023 – 24 Mar 2024  ·  14 months"),
                  ("Salmiya", "15 Jun 2023 – 26 Mar 2024  ·  9 months"),
                  ("sampling", "hourly"),
-                 ("timing", "model ~25 min late at Majis,"),
-                 ("", "1 – 1.5 h late at Salmiya")],
+                 ("timing", "model ~25 min late at Majis, 1–1.5 h at Salmiya")],
                 "gauge records")
     for k, name in enumerate(("Majis", "Salmiya")):
         top = Inches(2.05) + k * Inches(2.35)
@@ -361,7 +421,7 @@ def tide_slide(prs):
 GAUGE = {"Salmiya": "Salmiya, Kuwait", "Majis": "Majis, Oman"}
 
 
-def residual_slide(prs, name, head, stats, cap, note_text):
+def residual_slide(prs, name, head, stats, cap, note_text, strip=False):
     s = new_slide(prs)
     rail(s, 4)
     desal.headline(s, MARGIN, Inches(1.00), Inches(5.6), head, size=30)
@@ -369,13 +429,48 @@ def residual_slide(prs, name, head, stats, cap, note_text):
         stat(s, Inches(6.75) + k * Inches(2.0), Inches(0.95), big, lbl,
              width=Inches(1.9), size=40)
     dk.picture(s, asset(f"wl-residual-{name.lower()}.png"), MARGIN,
-               Inches(2.72), width=Inches(11.0))
-    tf = dk.box(s, MARGIN, Inches(6.42), Inches(11.5), Inches(0.9))
-    p = tf.paragraphs[0]
-    p.line_spacing = 1.3
-    dk.run(p, cap, font=F_BODY, size=12.5, color=INK_2, italic=True)
-    notes(s, note_text)
+               Inches(2.62), width=Inches(11.0))
+    if strip:
+        forecasts_strip(s, Inches(6.08))
+    else:
+        tf = dk.box(s, MARGIN, Inches(6.30), Inches(11.5), Inches(0.9))
+        p = tf.paragraphs[0]
+        p.line_spacing = 1.3
+        dk.run(p, cap, font=F_BODY, size=12.5, color=INK_2, italic=True)
+    notes(s, (cap + "  ") * strip + note_text)
     return s
+
+
+def forecasts_strip(s, top):
+    """The operational point, given a band of its own: the surge is forecast
+    three times over, every day, and the spread between the three is the
+    confidence band on the water level."""
+    h = Inches(1.20)
+    dk.rect(s, MARGIN, top, Inches(11.5), h, PAPER_2)
+    tf = dk.box(s, MARGIN + Inches(0.30), top + Inches(0.16), Inches(2.9),
+                Inches(0.9))
+    dk.run(tf.paragraphs[0], "Operationally", font=F_MONO, size=9,
+           color=ACCENT, track=160, caps=True)
+    p = tf.add_paragraph()
+    p.space_before = Pt(4)
+    p.line_spacing = 1.02
+    dk.run(p, "three surge forecasts,\nevery day.", font=F_DISPLAY, size=20,
+           color=INK)
+    cols = [("CROCO", "forced by GFS"),
+            ("CROCO", "forced by ECMWF"),
+            ("MERCATOR", "+ air pressure"),
+            ("One water level", "their mean on the tide; their spread is "
+                                "the confidence band")]
+    x, widths = MARGIN + Inches(3.35), (1.65, 1.65, 1.75, 3.2)
+    for (head, sub), w in zip(cols, widths):
+        tf = dk.box(s, x, top + Inches(0.26), Inches(w - 0.15), Inches(0.8))
+        dk.run(tf.paragraphs[0], head, font=F_BODY, size=13, color=INK,
+               bold=True)
+        p = tf.add_paragraph()
+        p.space_before = Pt(3)
+        p.line_spacing = 1.2
+        dk.run(p, sub, font=F_MONO, size=9, color=INK_2)
+        x += Inches(w)
 
 
 RESID_METHOD = ("Residual only. Gauge, CROCO and MERCATOR each put through the "
@@ -398,7 +493,7 @@ def salmiya_slide(prs):
         prs, "Salmiya", "Salmiya, Kuwait: the surge,\nevent by event.",
         [("0.88", "CROCO\ncorrelation\nRMSE 8.7 cm"),
          ("0.93", "MERCATOR\ncorrelation\nRMSE 6.9 cm"),
-         ("0.94", "mean of the two\ncorrelation\nRMSE 6.5 cm")],
+         ("0.94", "mean of the two\ncorrelation\nRMSE 6.4 cm")],
         "Residual only: gauge, our model and MERCATOR (with the air-pressure "
         "response added) put through one harmonic analysis over the gauge "
         "record, as the live forecast does; 15 Jun 2023 – 26 Mar 2024. Some "
@@ -406,11 +501,12 @@ def salmiya_slide(prs):
         "model, others by MERCATOR, and the mean of the two beats either — "
         "operationally the ensemble grows further, with our model forced by "
         "both GFS and ECMWF.",
-        "Salmiya: 6 840 hourly pairs. CROCO r 0.88 RMSE 8.7 cm; MERCATOR "
-        "r 0.93 RMSE 6.9 cm; mean of the two r 0.94 RMSE 6.5 cm. Without "
+        "Salmiya: 6 834 hourly pairs (6 gauge spikes removed). CROCO r 0.88 "
+        "RMSE 8.7 cm; MERCATOR r 0.93 RMSE 6.9 cm; mean of the two r 0.94 "
+        "RMSE 6.4 cm. Without "
         "the inverse barometer MERCATOR scores only r 0.77: it misses the "
         "annual cycle here, which is mostly the air-pressure response. Gauge "
-        "residual -0.72 to +0.48 m. " + RESID_METHOD)
+        "residual -0.72 to +0.48 m. " + RESID_METHOD, strip=True)
 
 
 def majis_slide(prs):
@@ -421,18 +517,20 @@ def majis_slide(prs):
     Salmiya, so the difference in size is the first thing seen."""
     return residual_slide(
         prs, "Majis", "Majis, Oman: outside the Gulf,\nthe surge is small.",
-        [("±7 cm", "typical surge\nSalmiya ±18 cm"),
+        [("±6 cm", "typical surge\nSalmiya ±18 cm"),
          ("0.98", "tide correlation\nSalmiya 0.87"),
-         ("0.74", "surge correlation\nSalmiya 0.94")],
+         ("0.81", "surge correlation\nSalmiya 0.94")],
         "The surge is generated inside the Gulf by wind over a shallow, "
         "enclosed sea; the tide comes in from outside. At Majis the tide is "
-        "near exact and the surge small and hard to pick out; at the head of "
-        "the Gulf, the reverse. Gauge record 6 Feb 2023 – 24 Mar 2024.",
-        "Majis: 8 637 hourly pairs. CROCO r 0.60 RMSE 6.0 cm; MERCATOR "
-        "r 0.77 RMSE 4.3 cm; mean r 0.74 RMSE 4.6 cm - here MERCATOR is the "
-        "stronger model and the ensemble mean sits just below it. Residual std: gauge "
-        "6.7 cm, CROCO 6.4 cm; at Salmiya gauge 18.4 cm. The spikes are in the "
-        "gauge record; removing them lifts r only slightly. " + RESID_METHOD)
+        "near exact and the surge a third of Salmiya's. Gauge record 6 Feb "
+        "2023 – 24 Mar 2024, with unphysical spikes removed (1.6% of readings).",
+        "Majis: 8 482 hourly pairs after the spike QC (155 readings, 1.6%, "
+        "flagged by an iterated 5-h running-median test at 0.10 m; the "
+        "same test removes 6 readings at Salmiya). CROCO r 0.65 RMSE 5.3 cm; "
+        "MERCATOR r 0.85 RMSE 3.1 cm; mean r 0.81 RMSE 3.6 cm - here "
+        "MERCATOR is the stronger model and the ensemble mean sits just "
+        "below it. Residual std: gauge 6.0 cm, CROCO 6.4 cm; at Salmiya gauge "
+        "18.4 cm. " + RESID_METHOD)
 
 
 # ------------------------------------------------------------------ 03
@@ -448,7 +546,10 @@ def abudhabi_slide(prs):
                   "year of your own record turns this into the slides before it.")
     notes(s, "CROCO C04_I01 hindcast, 2016-2024 hourly, at the nearest wet "
              "cell to the terminal (~3 km grid, ~6 m deep, within 2 km). "
-             "Residual extracted exactly as tidal_analysis.py does it. "
+             "Residual extracted exactly as tidal_analysis.py does it for an "
+             "ungauged site: fitted over 2016-2024, so the annual cycle is in "
+             "the tide (SA 10.9 cm, SSA 3.4 cm) and the residual's monthly "
+             "climatology is flat to within 2 cm. "
              "-0.37 to +0.60 m; 0.1 / 99.9 percentiles -0.27 / +0.47 m. "
              "Set-downs below -0.25 m: ~4 events a year; below -0.20 m: ~11 a "
              "year. Zayed Port, 40 km along the coast, tracks it at r 0.99.")
@@ -456,31 +557,38 @@ def abudhabi_slide(prs):
 
 
 def tidetable_slide(prs):
+    """The UKC budget and the week that breaks it, on one slide: the diagram
+    says where the residual sits in the budget, the figure shows a spring-tide
+    week when it was large."""
     s = new_slide(prs)
     dk.eyebrow(s, MARGIN, Inches(0.95), "Section 03  ·  Khalifa Port")
-    desal.headline(s, MARGIN, Inches(1.30), Inches(5.6),
-                   "What the tide table\ndidn't say.", size=36)
-    desal.bullets(s, MARGIN, Inches(2.95), Inches(5.2), [
-        "January 2023, replayed from the hindcast: a week of spring lows with "
-        "the water held 0.1 – 0.2 m under the tide throughout.",
-        "On 22 January it fell to −1.17 m — the lowest water in nine years, "
-        "and 0.11 m below the lowest tide the table predicts in all of them.",
-        "Low water was below −1.0 m on five days running. The tide table "
-        "says three.",
-        "The berth works to the total water level. The tide table gives you "
-        "only part of it.",
-    ], size=14)
-    dk.picture(s, asset("wl-tidetable-khalifa.png"), Inches(6.55),
-               Inches(2.25), width=Inches(6.2))
-    desal.caption(s, MARGIN, Inches(6.86), Inches(11.5),
+    desal.headline(s, MARGIN, Inches(1.25), Inches(11.4),
+                   "What the tide table didn't say.", size=32)
+    ukc_diagram(s, top=Inches(2.05))
+    dk.picture(s, asset("wl-tidetable-khalifa.png"), Inches(6.05),
+               Inches(1.95), width=Inches(6.35))
+    desal.bullets(s, Inches(6.05), Inches(5.52), Inches(6.35), [
+        "Early February 2019: a set-down of 0.20 – 0.28 m held for three days "
+        "as the tides built to springs.",
+        "At low water on 2 February the sea stood at −1.03 m against a "
+        "predicted −0.82 m: 21 cm of clearance the passage plan counted on.",
+    ], size=11.5)
+    desal.caption(s, MARGIN, Inches(7.02), Inches(11.5),
                   "hindcast, not a forecast issued at the time — Khalifa Port, "
-                  "nearest model cell, levels about model mean sea level")
-    notes(s, "18-27 Jan 2023. Lowest total water in 2016-2024: -1.17 m at "
-             "17:00 on 22 Jan (tide -1.06, residual -0.11). The lowest "
-             "predicted tide anywhere in 2016-2024 is -1.06 m - a stand-in "
-             "for the floor of a tide table, not a formal LAT. 25 Jan: tide "
-             "-0.89, residual -0.20, water -1.09. Levels are about model MSL; "
-             "on the client's chart datum they would shift by a constant.")
+                  "nearest model cell; levels about model mean sea level")
+    notes(s, "Budget: charted depth + predicted tide + residual - static "
+             "draught - squat - wave response - heel and trim = net clearance. "
+             "A passage plan also carries water density (fresh water "
+             "allowance) and survey / siltation tolerance; the drawing keeps to "
+             "the terms that move hour by hour. The model forecasts the "
+             "residual and the waves that drive vessel response. Week: 29 Jan "
+             "- 5 Feb 2019. No spring low water in 2016-2024 coincides "
+             "exactly with a residual below -0.25 m at Khalifa - such "
+             "set-downs are rare (~4 a year) and short; this is the closest: "
+             "-0.20 to -0.28 m from 31 Jan to 3 Feb, 12 hours below -0.25 m, "
+             "and -0.21 m at the 2 Feb low water (predicted -0.82, water "
+             "-1.03). Set-downs of 0.25 m or more: about four events a year "
+             "at Khalifa.")
     return s
 
 
@@ -556,28 +664,23 @@ def retext_kept(prs, k):
                    "not your basin. Harbour resonance and berth-scale currents "
                    "need a finer nest, which we scope in rather than assume.")
 
-    # 15. dashboard: new words, and a ports view in place of the desal one
+    # 15. dashboard: the UKC view -- what the user enters on the left, what
+    # the forecast says on the right, and the verdicts it reaches
     s = k[15]
-    set_paras(shape(s, 422), [dash_item(t) for t in [
-        "Your berths and channel, on your chart datum",
-        "Total water level: tide, surge and waves",
-        "Your limits on total water level at each berth, in the units "
-        "your pilots use.",
-        "Automated warnings (e.g. email) when forecast water level "
-        "crosses your limit"]])
+    bullets = shape(s, 422)
+    bullets._element.getparent().remove(bullets._element)
     old = shape(s, 423)
-    left, top, width = old.left, old.top, old.width
     old._element.getparent().remove(old._element)
-    pic = dk.picture(s, asset("wl-dashboard.png"), left, top, width=width)
-    # behind the label, which sat over the old picture
+    pic = dk.picture(s, asset("wl-dashboard.png"), Inches(6.30), Inches(2.42),
+                     width=Inches(6.65))
     s.shapes._spTree.remove(pic._element)
     shape(s, 424)._element.addprevious(pic._element)
-    # the label sat on the old screenshot's quiet corner; this figure has
-    # none, so it goes underneath
     lab = shape(s, 424)
-    set_paras(lab, [[("ILLUSTRATIVE VIEW  ·  JAN 2023 HINDCAST, REPLAYED", 0)]])
-    lab.left, lab.top = pic.left, pic.top + pic.height + Inches(0.12)
-    lab.width, lab.height = pic.width, Inches(0.3)
+    set_paras(lab, [[("ILLUSTRATIVE VIEW  ·  SALMIYA, DEC 2023 HINDCAST, "
+                      "REPLAYED", 0)]])
+    lab.left, lab.top = pic.left, pic.top + pic.height + Inches(0.06)
+    lab.width, lab.height = pic.width, Inches(0.25)
+    dashboard_panel(s)
 
     # 16. with your data
     s = k[16]
@@ -637,7 +740,6 @@ def build(out="oma-pitch-ports.pptx"):
     retext_kept(prs, k)
 
     d02 = divider(prs, "Section 02", "Tested against tide gauges")
-    ukc = ukc_slide(prs)
     tide = tide_slide(prs)
     sal = salmiya_slide(prs)
     maj = majis_slide(prs)
@@ -647,7 +749,7 @@ def build(out="oma-pitch-ports.pptx"):
 
     reorder(prs, [k[1], k[2],
                   k[3], k[4], k[5], k[6], k[7],              # 01 the model
-                  d02, ukc, tide, sal, maj,                   # 02 the gauges
+                  d02, tide, sal, maj,                        # 02 the gauges
                   d03, ad, tt,                                # 03 your port
                   k[12], k[13], k[14], k[15], k[16], k[17],   # 04 the offer
                   k[18]])
