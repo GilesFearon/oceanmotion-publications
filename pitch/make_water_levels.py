@@ -379,9 +379,11 @@ def fig_tide(g, name):
     return save(fig, f"tide-{name.lower()}")
 
 
-def fig_residual(g, name):
+def fig_residual(g, name, merc=True):
     """The residual at one gauge: the whole record above, Nov-Dec 2023 below,
-    gauge against CROCO and MERCATOR.
+    gauge against CROCO and MERCATOR. merc=False draws the gauge against CROCO
+    alone (the ADEC deck, where the design argument is the model's own record)
+    and saves it as residual-<name>-croco.
 
     Both models are drawn because neither wins every event -- some set-downs
     are CROCO's, some MERCATOR's -- and their mean beats either, which is the
@@ -401,6 +403,8 @@ def fig_residual(g, name):
     lines = (("res_obs", INK, 1.0, 1.0, "tide gauge"),
              ("res_mod", MODEL, 1.0, 0.9, "CROCO"),
              ("res_merc", MERC, 1.0, 0.85, "MERCATOR + air pressure"))
+    if not merc:
+        lines = lines[:2]
 
     for ax, lo, hi, loc, fmt in (
             (a1, t[0], t[-1], mdates.MonthLocator(), "%b %Y"),
@@ -422,17 +426,22 @@ def fig_residual(g, name):
     a1.add_patch(Rectangle((x0, ylim[0]), x1 - x0,
                            ylim[1] - ylim[0], fill=False,
                            edgecolor=ACCENT, lw=1.4, zorder=6, clip_on=False))
-    _legend(a1, ncol=3)
+    _legend(a1, ncol=len(lines))
 
-    _side(a1, "          r     RMSE\n"
-              f"CROCO     {st['mod']['r']:.2f}  {st['mod']['rmse'] * 100:.0f} cm\n"
-              f"MERCATOR  {st['merc']['r']:.2f}  {st['merc']['rmse'] * 100:.0f} cm\n"
-              f"mean      {st['mean']['r']:.2f}  {st['mean']['rmse'] * 100:.0f} cm",
-          size=8)
+    if merc:
+        _side(a1, "          r     RMSE\n"
+                  f"CROCO     {st['mod']['r']:.2f}  {st['mod']['rmse'] * 100:.0f} cm\n"
+                  f"MERCATOR  {st['merc']['r']:.2f}  {st['merc']['rmse'] * 100:.0f} cm\n"
+                  f"mean      {st['mean']['r']:.2f}  {st['mean']['rmse'] * 100:.0f} cm",
+              size=8)
+    else:
+        _side(a1, "          r     RMSE\n"
+                  f"CROCO     {st['mod']['r']:.2f}  {st['mod']['rmse'] * 100:.1f} cm",
+              size=8)
     for k, v in st.items():
         print(f"    {name} residual {k:5s} r {v['r']:.3f} RMSE "
               f"{v['rmse']:.3f} m n {v['n']}")
-    return save(fig, f"residual-{name.lower()}")
+    return save(fig, f"residual-{name.lower()}" + ("" if merc else "-croco"))
 
 
 def fig_abudhabi(d):
@@ -755,6 +764,8 @@ if __name__ == "__main__":
     ap.add_argument("--extract", action="store_true",
                     help="extract the Abu Dhabi residual from the hindcast")
     ap.add_argument("--all", action="store_true", help="render every figure")
+    ap.add_argument("--croco-only", action="store_true",
+                    help="render only the CROCO-only Salmiya residual (ADEC deck)")
     args = ap.parse_args()
 
     if args.extract:
@@ -776,3 +787,8 @@ if __name__ == "__main__":
         else:
             print(f"  ({CACHE} missing — run --extract for the Abu Dhabi figures)")
         fig_ukc_dashboard(gs["Salmiya"])
+    if args.croco_only:
+        import matplotlib
+        matplotlib.use("Agg")
+        register_fonts()
+        fig_residual(gauge("Salmiya"), "Salmiya", merc=False)
