@@ -23,7 +23,8 @@ with deckkit. Shape ids are the base file's; every lookup fails loudly.
 Story:
   --  what has changed since we last worked together
   01  how the model works         inputs, grid, circulation, waves, turbidity
-  02  tested against tide gauges  Salmiya surge; nine years at Khalifa Port
+  02  tested against tide gauges  Salmiya and Majis surge; nine years at
+                                 Khalifa Port
   03  a design dataset            the dataset (status stated); climate horizons
   04  working together            three ways; founding partner
 
@@ -39,7 +40,6 @@ import argparse
 import os
 from datetime import date
 
-from pptx import Presentation
 from pptx.util import Inches
 
 import deckkit as dk
@@ -115,6 +115,43 @@ def salmiya_slide(prs):
     return s
 
 
+def majis_slide(prs):
+    """The contrast to Salmiya, CROCO alone as on that slide. Outside Hormuz
+    the surge is a third the size, so the same few-cm errors weigh more: this
+    is the weakest residual score in the deck, and the slide says what it
+    is rather than leaving it out. Same layout as Salmiya, so the two read as
+    a pair."""
+    s = new_slide(prs)
+    evidence_rail(s, None)
+    desal.headline(s, MARGIN, Inches(1.00), Inches(5.6),
+                   "Majis, Oman: outside the Gulf,\nthe surge is small.",
+                   size=30)
+    for k, (big, lbl) in enumerate([
+            ("0.65", "correlation\nhourly, 14 months"),
+            ("5.3 cm", "RMSE"),
+            ("±6 cm", "typical surge\nat the gauge")]):
+        ports.stat(s, Inches(6.75) + k * Inches(2.0), Inches(0.95), big, lbl,
+                   width=Inches(1.9), size=40)
+    dk.picture(s, ports.asset("wl-residual-majis-croco.png"), MARGIN,
+               Inches(2.62), width=Inches(11.0))
+    desal.caption(s, MARGIN, Inches(6.40), Inches(11.5),
+                  "non-tidal residual only, as at Salmiya; 6 Feb 2023 – "
+                  "24 Mar 2024, unphysical gauge spikes removed (1.6% of "
+                  "readings). The tide here is near exact: correlation 0.98.")
+    notes(s, "Majis: 8 482 hourly pairs after the spike QC (155 readings, "
+             "1.6%, flagged by an iterated 5-h running-median test at "
+             "0.10 m). CROCO r 0.65, RMSE 5.3 cm. Residual std: gauge 6.0 cm, "
+             "CROCO 6.4 cm; at Salmiya the gauge std is 18.4 cm. The surge is "
+             "made inside the Gulf by wind over a shallow enclosed sea, while "
+             "the tide comes in through Hormuz: at Majis the tide is near "
+             "exact (r 0.98, amplitudes within 2 cm on the main constituents, "
+             "a uniform ~25 min lag still to be checked) and the surge is a "
+             "third of Salmiya's, so a few cm of error costs more "
+             "correlation. If pressed: the operational forecast runs an "
+             "ensemble with MERCATOR, which scores r 0.85 here.")
+    return s
+
+
 def abudhabi_slide(prs):
     s = new_slide(prs)
     dk.eyebrow(s, MARGIN, Inches(0.95), "Section 02  ·  Abu Dhabi")
@@ -169,6 +206,68 @@ def partner_slide(prs):
     return s
 
 
+def lead_items(sh, items, top=None, width=None, size=None,
+               aside_last=False):
+    """Dash bullets with a bold lead word, in the base deck's own bullet
+    formatting. aside_last mutes the final item, for the thing worth saying
+    but not worth selling on this slide."""
+    set_paras(sh, [[("—  ", 0), (lead + "  ", 1), (body, 1)]
+                   for lead, body in items])
+    from pptx.util import Pt
+    paras = sh.text_frame.paragraphs
+    for p in paras:
+        p.runs[1].font.bold = True
+        if size is not None:
+            p.line_spacing = 1.22
+            p.space_after = Pt(7)
+            for r in p.runs:
+                r.font.size = Pt(size)
+    if aside_last:
+        for r in paras[-1].runs:
+            r.font.color.rgb = dk.INK_3
+    if top is not None:
+        sh.height = sh.height + (sh.top - top)
+        sh.top = top
+    if width is not None:
+        sh.width = width
+
+
+def gauge_sites(s, sid=247):
+    """Swap the circulation map for the render with the gauges marked, and set
+    their names as native text beside the markers. Positions come from the
+    anchors file the figure writes, so the names follow the map. Salmiya's
+    name goes to the right, over Kuwait; Majis sits near the map's right
+    edge, beside the 3D block, so its name goes underneath."""
+    import json
+    from pptx.enum.text import PP_ALIGN
+    pic = dk.swap_picture(s, sid, ports.asset("chain-5-circulation-sites.png"))
+    with open(ports.asset("chain-5-circulation-sites.anchors.json")) as fh:
+        anchors = json.load(fh)
+    w = Inches(0.9)
+    place = {"Salmiya": (Inches(0.15), -Inches(0.13), PP_ALIGN.LEFT),
+             "Majis": (-w / 2, Inches(0.08), PP_ALIGN.CENTER)}
+    if set(anchors) != set(place):
+        raise SystemExit(f"sites on the map {sorted(anchors)} != labelled "
+                         f"{sorted(place)}")
+    for name, a in anchors.items():
+        dx, dy, align = place[name]
+        x = pic.left + a["x"] * pic.width
+        y = pic.top + a["y"] * pic.height
+        tf = ports.label(s, x + dx, y + dy, w, name, color=dk.INK, size=9,
+                         align=align)
+        if name == "Salmiya":
+            # it sits on the densest arrows in the map: a white chip, cut to
+            # the word, keeps it legible without hiding more than it must
+            box = tf._parent
+            box.fill.solid()
+            box.fill.fore_color.rgb = dk.GROUND
+            box.width = Inches(0.78)
+            tf.word_wrap = False
+            tf.margin_left = tf.margin_right = Inches(0.04)
+    notes(s, "The two dots are the tide gauges section 02 tests against: "
+             "Salmiya at the head of the Gulf, Majis outside Hormuz.")
+
+
 # ------------------------------------------------------------------ kept
 def retext_kept(k):
     """k maps the base deck's 1-based slide numbers to slides."""
@@ -187,6 +286,9 @@ def retext_kept(k):
             "Tested against tide gauges",
             "A design dataset for the Gulf",
             "Working together"])])
+
+    # 6. circulation: the map carries the two tide gauges of section 02
+    gauge_sites(k[6])
 
     # 8, 10, 11. turbidity: same slides, the consultancy's reasons in notes
     notes(k[8], "For a consultancy the turbidity story is dredging and "
@@ -220,34 +322,62 @@ def retext_kept(k):
     notes(s, "We supply what sits behind your study; the nearshore modelling "
              "and design stay with you.")
 
-    # 14. offering 01 -> the dataset
+    # 14. offering 01 -> the dataset. The selling point is the joint record:
+    # waves and water level hour by hour over decades, so a designer no
+    # longer has to assume how the two co-occur. One bullet per product,
+    # co-occurrence given its own, turbidity last and muted as an aside.
     s = k[14]
     retext(s, 404, "SECTION 03")
-    retext(s, 405, "A design dataset for the whole Gulf.")
-    set_paras(shape(s, 406), [dash_item(t) for t in [
-        "Forty-plus years of hourly waves, water level, surge and currents, "
-        "from the modelling chain you have just seen.",
-        "Extremes checked against tide gauges and satellite wave heights, "
-        "with the skill published alongside the data.",
-        "A turbidity climatology: how often, how high and for how long, "
-        "at any site and depth.",
-        "Climate horizons at 2050 and 2100 for the same variables."]])
+    retext(s, 405, "Waves and water level together,\n"
+                   "hour by hour, for 40+ years.")
+    head = shape(s, 405)
+    head.height = Inches(1.15)
+    lead_items(shape(s, 406), [
+        ("Waves.", "Hourly parameters and full directional spectra at any "
+                   "point, in the format your models take: MIKE, SWAN or "
+                   "WW3. Each output point can be bias-corrected against "
+                   "satellite altimetry."),
+        ("Surge.", "Tide and surge separated, hourly, across the whole Gulf, "
+                   "checked against tide gauges as in Section 02."),
+        ("Co-occurrence.", "One modelling chain, one set of winds: every "
+                           "hour carries both waves and water level. Joint "
+                           "extremes for EVA, and berth availability and "
+                           "throughput from the real sequence of conditions, "
+                           "not an assumed dependence."),
+        ("Nested models.", "Boundary conditions for your nearshore models: "
+                           "spectral waves, water level and currents along "
+                           "any open boundary, over the same period."),
+        ("Also turbidity.", "From the same run, a climatology of how often, "
+                            "how high and for how long, for dredging and EIA "
+                            "baselines."),
+    ], top=Inches(2.88), width=Inches(6.9), size=12, aside_last=True)
     retext(s, 408, "WHAT IT WILL COVER")
     set_paras(shape(s, 409), [spec_item(*r) for r in [
         ("period", "40+ years, hourly"),
-        ("variables", "waves, water level, surge"),
-        ("", "currents, T, S, turbidity"),
+        ("waves", "Hs, Tp, direction + 2D spectra"),
+        ("water level", "total, tide and surge"),
+        ("also", "currents, T, S, turbidity"),
         ("resolution", "~3 km regional"),
-        ("deliverable", "point data + skill appendix"),
-        ("", "extracted at any coordinates, in days")]])
+        ("formats", "MIKE, SWAN, WW3, NetCDF, CSV"),
+        ("deliverable", "point series, spectra, boundaries"),
+        ("", "at any coordinates, with a skill appendix")]])
     retext(s, 412, "STATUS AND SCOPE")
     retext(s, 413, "In build, first half of 2027; today's record is ten years "
                    "of circulation and one of waves. Regional, not nearshore: "
                    "transformation to your structures stays in your models.")
-    notes(s, "Be exact about status. Today: 10-year CROCO hindcast (2015-2025) "
-             "and one year of coupled waves (2016). The 40-year record, "
-             "extremes validation, turbidity climatology and climate horizons "
-             "are the 2027 build.")
+    notes(s, "The point of this slide is the joint record. Designers normally "
+             "take waves and water level from separate sources and assume how "
+             "they co-occur (a dependence factor, as in the Defra/EA FD2308 "
+             "joint probability approach), for both EVA and operational "
+             "studies. Here the two are simulated together, hour by hour, so "
+             "joint exceedance and downtime come straight from the record. "
+             "Waves: WW3 forced by the same ERA5 winds and by CROCO's water "
+             "levels and currents; spectra can be written at any output point "
+             "and converted to MIKE 21 SW or SWAN boundary formats; per-point "
+             "bias correction against CMEMS altimetry. Be exact about status. Today: 10-year CROCO hindcast "
+             "(2015-2025) and one year of coupled waves (2016). The 40-year "
+             "record, extremes validation, turbidity climatology and climate "
+             "horizons are the 2027 build.")
 
     # 17. climate
     s = k[17]
@@ -258,7 +388,8 @@ def retext_kept(k):
         "Structures designed now will work through the 2070s, but climate "
         "allowances in the Gulf are mostly desk estimates.",
         "Sea level rise lets larger waves reach shallow structures, and "
-        "surge rides on a higher mean — the design values move together.",
+        "surge rides on a higher mean. The future record keeps waves and "
+        "water level together, so joint extremes move consistently.",
         "The same rise reduces bed stress, so turbidity can fall at deeper "
         "sites while waves at the structure grow. One consistent set of "
         "runs answers both."]])
@@ -267,7 +398,7 @@ def retext_kept(k):
         ("scenarios", "SSP2-4.5 and SSP5-8.5"),
         ("horizons", "2050 and 2100"),
         ("sea level", "projected rise, built into the model"),
-        ("answers", "design water level, Hs, turbidity"),
+        ("answers", "joint water level and waves, turbidity"),
         ("built on", "the same validated models")]])
     notes(s, "The method keeps the observed sequence of shamals and adds the "
              "projected change on top; wind changes are handled as a response "
@@ -279,10 +410,7 @@ KEEP = [1, 2, 3, 4, 5, 6, 7, 8, 10, 11, 13, 14, 17, 18]
 
 
 def build(out="oma-pitch-adec.pptx"):
-    prs = Presentation(BASE)
-    base = list(prs.slides)
-    if len(base) != 18:
-        raise SystemExit(f"{BASE} has {len(base)} slides, expected 18")
+    prs, base = ports.load_base()
     k = {n: base[n - 1] for n in KEEP}
     for n, s in enumerate(base, 1):
         if n not in KEEP:
@@ -292,6 +420,7 @@ def build(out="oma-pitch-adec.pptx"):
     since = since_slide(prs)
     d02 = divider(prs, "Section 02", "Tested against tide gauges")
     sal = salmiya_slide(prs)
+    maj = majis_slide(prs)
     ad = abudhabi_slide(prs)
     d03 = divider(prs, "Section 03", "A design dataset for the Gulf")
     d04 = divider(prs, "Section 04", "Working together")
@@ -299,7 +428,7 @@ def build(out="oma-pitch-adec.pptx"):
 
     reorder(prs, [k[1], since, k[2],
                   k[3], k[4], k[5], k[6], k[7], k[8], k[10], k[11],  # 01
-                  d02, sal, ad,                                       # 02
+                  d02, sal, maj, ad,                                     # 02
                   d03, k[14], k[17],                                  # 03
                   d04, k[13], partner,                                # 04
                   k[18]])

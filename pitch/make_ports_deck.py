@@ -54,7 +54,7 @@ from pptx.text.text import _Paragraph
 
 import deckkit as dk
 from deckkit import (ABYSS, ACCENT, CYAN, CYAN_LT, INK, INK_2, INK_3, NAVY,
-                     NAVY_MID, PAPER, PAPER_2, RULE,
+                     NAVY_MID, PAPER, GROUND, PAPER_2, RULE,
                      F_BODY, F_DISPLAY, F_MONO, EMU_W, EMU_H, MARGIN)
 import make_chain_deck as chain
 import make_desal_deck as desal
@@ -67,8 +67,54 @@ def asset(name):
     path = os.path.join(ASSET, name)
     if not os.path.exists(path):
         raise SystemExit(f"{path} missing — run make_water_levels.py --all "
-                         "in the somisana_croco env first")
+                         "and make_model_chain.py --all --gif in the "
+                         "somisana_croco env first")
     return path
+
+
+# Every figure in the base deck, by (1-based slide, shape id), and the asset it
+# was made from. PowerPoint re-encoded them on save, so they were matched to
+# their sources by picture content, not by bytes. load_base() swaps each for
+# the current render, so the deck carries whatever the generators last drew
+# while keeping the hand-placed frames and crops.
+BASE_PICTURES = {
+    (4, 198): "chain-3a-door.png",   (4, 199): "chain-3b-ocean.png",
+    (4, 200): "chain-3c-tide.png",   (4, 201): "chain-3d-waves.png",
+    (4, 202): "chain-2-atmosphere.png",
+    (5, 222): "chain-4-grid.png",
+    (6, 247): "chain-5-circulation.png", (6, 248): "chain-5-block.png",
+    (6, 249): "chain-5a-sst.png",
+    (7, 266): "chain-6-waves.png",   (7, 267): "chain-6a-hs.png",
+    (8, 288): "chain-7b-process.png",
+    (9, 309): "chain-7d-erosion.png",
+    (10, 337): "chain-7c-modis.png", (10, 338): "chain-7a-calibration.png",
+    (11, 354): "chain-8-cascade.gif",
+}
+# The desal dashboard screenshot has no generator; it is whitened in place.
+BASE_SCREENSHOT = (15, 423)
+
+
+def load_base():
+    """The base deck on the white ground: cream fills recoloured, every figure
+    replaced by its current render, the screenshot whitened. Hand edits --
+    wording, layout, crops -- are untouched."""
+    prs = Presentation(BASE)
+    base = list(prs.slides)
+    if len(base) != 18:
+        raise SystemExit(f"{BASE} has {len(base)} slides, expected 18")
+    dk.recolour_fills(prs)
+    for (n, sid), name in BASE_PICTURES.items():
+        dk.swap_picture(base[n - 1], sid, asset(name))
+    n, sid = BASE_SCREENSHOT
+    pic = shape(base[n - 1], sid)
+    import tempfile
+    with tempfile.TemporaryDirectory() as tmp:
+        src = os.path.join(tmp, "in.png")
+        with open(src, "wb") as fh:
+            fh.write(pic.image.blob)
+        dk.swap_picture(base[n - 1], sid, dk.whiten_screenshot(
+            src, os.path.join(tmp, "out.png")))
+    return prs, base
 
 
 # ------------------------------------------------------------------ retext
@@ -176,7 +222,7 @@ def reorder(prs, order):
         lst.append(sid)
 
 
-def new_slide(prs, ground=PAPER):
+def new_slide(prs, ground=GROUND):
     # layout 0 is BLANK in the base deck; its date/footer/number placeholders
     # are not cloned onto new slides, so this comes out genuinely empty
     s = prs.slides.add_slide(prs.slide_layouts[0])
@@ -361,7 +407,7 @@ def ukc_diagram(s, top=Inches(2.05)):
     # allowances under the keel, then what is left
     bands = [("squat", Y(4.20), Y(4.52), RGBColor(0xff, 0xd9, 0xc7)),
              ("wave response", Y(4.52), Y(4.94), RGBColor(0x9f, 0xd2, 0xdc)),
-             ("heel & trim", Y(4.94), Y(5.20), RGBColor(0xe6, 0xdc, 0xc4))]
+             ("heel & trim", Y(4.94), Y(5.20), RGBColor(0xdf, 0xe4, 0xea))]
     for name, a, b, c in bands:
         dk.rect(s, hx0, a, hx1 - hx0, b - a, c)
         label(s, hx1 + Inches(0.10), (a + b) / 2 - Inches(0.13), Inches(1.55),
@@ -729,10 +775,7 @@ KEEP = [1, 2, 3, 4, 5, 6, 7, 12, 13, 14, 15, 16, 17, 18]
 
 
 def build(out="oma-pitch-ports.pptx"):
-    prs = Presentation(BASE)
-    base = list(prs.slides)
-    if len(base) != 18:
-        raise SystemExit(f"{BASE} has {len(base)} slides, expected 18")
+    prs, base = load_base()
     k = {n: base[n - 1] for n in KEEP}
     for n, s in enumerate(base, 1):
         if n not in KEEP:

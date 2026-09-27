@@ -28,12 +28,17 @@ NAVY_MID = RGBColor(0x13, 0x29, 0x4a)
 CYAN     = RGBColor(0x4f, 0xc3, 0xd7)
 CYAN_LT  = RGBColor(0xa8, 0xe0, 0xea)
 ACCENT   = RGBColor(0xff, 0x6a, 0x2b)
+# PAPER is the warm off-white of the website. It stays as the light type on dark
+# slides; light slides themselves are GROUND, plain white (Sep 2026: the cream
+# ground read as pink on projectors). PAPER_2 and RULE are the cool greys that
+# sit on white -- cards and asides, and hairlines and rail ticks.
 PAPER    = RGBColor(0xf4, 0xef, 0xe3)
-PAPER_2  = RGBColor(0xef, 0xe9, 0xd9)
+GROUND   = RGBColor(0xff, 0xff, 0xff)
+PAPER_2  = RGBColor(0xf1, 0xf3, 0xf6)
 INK      = RGBColor(0x0b, 0x14, 0x20)
 INK_2    = RGBColor(0x4a, 0x56, 0x65)
 INK_3    = RGBColor(0x8a, 0x94, 0xa2)
-RULE     = RGBColor(0xd6, 0xcd, 0xb6)
+RULE     = RGBColor(0xd5, 0xdb, 0xe2)
 
 F_DISPLAY = "Instrument Serif"
 F_BODY    = "IBM Plex Sans"
@@ -237,7 +242,7 @@ def node_box(s, left, top, w, h, img=None, label=None, sub=None,
     """A labelled box for the chain schematic: optional thumbnail, name above,
     caption below. Every part is a separate shape, so the whole diagram stays
     editable on the slide."""
-    r = rect(s, left, top, w, h, PAPER, line=edge)
+    r = rect(s, left, top, w, h, GROUND, line=edge)
     if img:
         pad = Pt(4)
         s.shapes.add_picture(img, left + pad, top + pad,
@@ -278,3 +283,73 @@ def wordmark(s, left, top, on_dark=True):
     gradient_text(p, "Ocean Motion", grad[0], grad[1], F_DISPLAY, 22)
     run(p, " ", font=F_DISPLAY, size=22, color=grad[1])
     run(p, "ANALYTICS", font=F_MONO, size=10, color=suf_c, track=220, caps=True)
+
+
+# ------------------------------------------------------------------ restyle
+# The cream-ground palette, as hand-edited decks still carry it, and what each
+# colour becomes on the white ground. Fills and lines only: F4EFE3 is also the
+# light type on dark slides, which keeps its colour.
+CREAM_TO_WHITE = {"F4EFE3": "FFFFFF", "EFE9D9": str(PAPER_2),
+                  "D6CDB6": str(RULE)}
+
+
+def recolour_fills(prs, mapping=CREAM_TO_WHITE):
+    """Recolour shape fills, outlines and backgrounds (never text) on every
+    slide, layout and master. Returns the number of colours changed."""
+    text = {qn('a:rPr'), qn('a:defRPr'), qn('a:endParaRPr')}
+    parts = ([m for m in prs.slide_masters] + list(prs.slide_layouts)
+             + list(prs.slides))
+    n = 0
+    for p in parts:
+        for el in p._element.iter(qn('a:srgbClr')):
+            anc, is_text = el.getparent(), False
+            while anc is not None:
+                if anc.tag in text:
+                    is_text = True
+                    break
+                anc = anc.getparent()
+            new = mapping.get(el.get('val').upper())
+            if new and not is_text:
+                el.set('val', new)
+                n += 1
+    return n
+
+
+def swap_picture(s, sid, path, tol=0.01):
+    """Replace the image behind picture `sid` with the file at `path`, keeping
+    its position, size and crop. Fails loudly if the shape is missing or the
+    new image's aspect ratio differs from the one it replaces -- the frame
+    would stretch it."""
+    import io
+    from PIL import Image
+    pic = next((sh for sh in s.shapes if sh.shape_id == sid), None)
+    if pic is None or pic.shape_type != 13:
+        raise SystemExit(f"picture {sid} not found on slide")
+    part = s.part.related_part(pic._element.blipFill.find(qn('a:blip'))
+                               .get(qn('r:embed')))
+    old = Image.open(io.BytesIO(part.blob)).size
+    with open(path, "rb") as fh:
+        blob = fh.read()
+    new = Image.open(io.BytesIO(blob)).size
+    a0, a1 = old[0] / old[1], new[0] / new[1]
+    if abs(a1 - a0) / a0 > tol:
+        raise SystemExit(f"{os.path.basename(path)} is {new}, aspect {a1:.3f}; "
+                         f"picture {sid} holds {old}, aspect {a0:.3f}")
+    if os.path.splitext(path)[1].lower() != os.path.splitext(
+            str(part.partname))[1].lower():
+        raise SystemExit(f"{path}: format differs from {part.partname}")
+    part._blob = blob
+    return pic
+
+
+def whiten_screenshot(path_in, path_out, cream=(0xf4, 0xef, 0xe3), tol=14):
+    """For pictures with no generator behind them (a dashboard screenshot):
+    pixels within `tol` of the cream ground become white. Antialiased edges keep
+    a trace of the old ground; at slide size it does not show."""
+    import numpy as np
+    from PIL import Image
+    im = np.asarray(Image.open(path_in).convert("RGB")).astype(int)
+    near = np.abs(im - np.array(cream)).max(axis=-1) <= tol
+    im[near] = 255
+    Image.fromarray(im.astype("uint8")).save(path_out)
+    return path_out

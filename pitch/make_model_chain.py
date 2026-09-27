@@ -146,11 +146,11 @@ ABYSS   = "#050f1c"
 NAVY    = "#091c33"
 CYAN    = "#4fc3d7"
 ACCENT  = "#ff6a2b"
-PAPER   = "#f4efe3"
+PAPER   = "#ffffff"   # the light-slide ground (white since Sep 2026; was #f4efe3)
 INK     = "#0b1420"
 INK_2   = "#4a5665"
 INK_3   = "#8a94a2"
-RULE    = "#d6cdb6"
+RULE    = "#d5dbe2"
 
 F_DISPLAY, F_BODY, F_MONO = "Instrument Serif", "IBM Plex Sans", "IBM Plex Mono"
 
@@ -158,7 +158,7 @@ F_DISPLAY, F_BODY, F_MONO = "Instrument Serif", "IBM Plex Sans", "IBM Plex Mono"
 # as a filled tone. GSHHS covers nearly the whole frame at this extent, so a
 # tinted land makes the map read as a pasted rectangular panel; matching the
 # ground lets it float, and the coastline does the work on its own.
-LAND_FILL, LAND_EDGE = "#f4efe3", "#a2957c"
+LAND_FILL, LAND_EDGE = PAPER, "#9aa4af"
 
 # ------------------------------------------------------------------ the storm
 # 21 January 2022. Hours are indices into the January hourly files (0 = 1 Jan
@@ -809,7 +809,7 @@ def cvectors(ax, lon, lat, u, v, levels, cmap, skip=6, where=None,
                      headaxislength=3.4, pivot="mid", zorder=4)
 
 
-def flat_sea(ax, d, color="#e9e3d2"):
+def flat_sea(ax, d, color="#e7ecf0"):
     """The model footprint as one inert tone, so the basin still reads as a
     shape under a vector field that carries all the colour itself."""
     import cartopy.crs as ccrs
@@ -936,6 +936,25 @@ def slide_5(d):
     box is the block that is cut out; no caption needed, since the block sits
     directly below it on the slide.
     """
+    return _circulation(d)
+
+
+# The tide gauges the water level slides are tested against, marked on the
+# circulation map for the decks that carry those slides. From configs/gulf_01/
+# locations.yaml. The last field draws the marker filled (a gauge) or hollow
+# (a model-only site); Khalifa Port was dropped from the map (Sep 2026).
+SITES = [("Salmiya", 48.111210, 29.356870, True),
+         ("Majis", 56.637126, 24.512053, True)]
+
+
+def slide_5_sites(d):
+    """Slide 5's map with the water level sites on it. Names are not drawn:
+    their positions go to chain-5-circulation-sites.anchors.json and the deck
+    sets them as native text, so they stay legible at slide size."""
+    return _circulation(d, sites=True)
+
+
+def _circulation(d, sites=False):
     import cartopy.crs as ccrs
     fig, ax = new_map(domain_extent(d))
     flat_sea(ax, d)
@@ -946,7 +965,20 @@ def slide_5(d):
     ax.plot([x0, x1, x1, x0, x0], [y0, y0, y1, y1, y0], color=ACCENT, lw=1.8,
             transform=ccrs.PlateCarree(), zorder=6)
     colorbar(fig, art, LEVELS["curr"], "surface current speed  (m/s)", every=2)
-    return save(fig, "5-circulation")
+    if not sites:
+        return save(fig, "5-circulation")
+    anchors = {}
+    for name, lon, lat, gauged in SITES:
+        ax.plot(lon, lat, "o", ms=7.5, mew=1.8, mec=INK,
+                mfc=INK if gauged else PAPER, transform=ccrs.PlateCarree(),
+                zorder=8)
+        # the axes fill the figure, so axes fractions are image fractions
+        x, y = ax.transAxes.inverted().transform(
+            ax.transData.transform(ax.projection.transform_point(
+                lon, lat, ccrs.PlateCarree())))
+        anchors[name] = {"x": float(x), "y": float(1 - y), "gauged": gauged}
+    save_anchors("5-circulation-sites", anchors)
+    return save(fig, "5-circulation-sites")
 
 
 # ------------------------------------------------------------------ 3D block
@@ -1664,7 +1696,7 @@ def slide_4(d):
                     alpha=0.55, transform=ccrs.PlateCarree(), zorder=5)
         if p.get("nest_outline"):
             nest_edge(ax)
-        ax.add_feature(cfeature.GSHHSFeature(scale="f"), facecolor="#e4dbc3",
+        ax.add_feature(cfeature.GSHHSFeature(scale="f"), facecolor="#e6e9ed",
                        edgecolor=INK_2, linewidth=0.6, zorder=6)
 
         if p.get("box"):
@@ -1714,7 +1746,7 @@ def slide_3a_door(d):
     because the subject here is the edge, not the interior."""
     import cartopy.crs as ccrs
     fig, ax = new_map(domain_extent(d))
-    flat_sea(ax, d, "#e7e1d0")
+    flat_sea(ax, d, "#e5eaef")
     east = np.where(d["mask"][:, -1] == 1)[0]
     blon, blat = d["lon"][east, -1], d["lat"][east, -1]
     ax.plot(blon, blat, color=ACCENT, lw=3.6, solid_capstyle="round",
@@ -2183,6 +2215,7 @@ def render_gif(d, dpi=100, ms=55):
 
 
 SLIDES = {2: slide_2, 4: slide_4, 5: slide_5, 6: slide_6, 7: slide_7,
+          53: slide_5_sites,
           31: slide_3a_door, 32: slide_3b_ocean,
           33: slide_3c_tide, 34: slide_3d_waves, 51: slide_5_block, 52: slide_5a_sst, 61: slide_6a_hs,
           71: slide_7a_calib, 72: slide_7b_process, 73: slide_7c_modis,

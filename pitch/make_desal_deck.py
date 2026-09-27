@@ -35,7 +35,7 @@ from pptx.enum.text import PP_ALIGN, MSO_ANCHOR
 
 import deckkit as dk
 from deckkit import (ABYSS, ACCENT, CYAN, CYAN_LT, INK, INK_2, INK_3, NAVY,
-                     NAVY_MID, PAPER, PAPER_2, RULE,
+                     NAVY_MID, PAPER, GROUND, PAPER_2, RULE,
                      F_BODY, F_DISPLAY, F_MONO, EMU_W, EMU_H, MARGIN)
 import make_chain_deck as chain
 
@@ -59,7 +59,7 @@ HERO_LOOP = os.path.join(ASSET, "hero-streamlines.gif")
 SITE = "24.37 N  ·  54.05 E  ·  6 m"
 
 
-def slide(prs, ground=PAPER):
+def slide(prs, ground=GROUND):
     s = prs.slides.add_slide(prs.slide_layouts[6])
     dk.bg(s, ground)
     return s
@@ -202,7 +202,7 @@ CONTENTS = ["What your intake actually sees",
 
 
 def contents_slide(prs):
-    s = slide(prs, PAPER)
+    s = slide(prs, GROUND)
     dk.eyebrow(s, MARGIN, Inches(0.95), "Contents")
     headline(s, MARGIN, Inches(1.4), Inches(9), "What we'll cover.", size=44)
     tf = dk.box(s, MARGIN, Inches(2.9), Inches(10), Inches(4))
@@ -220,7 +220,7 @@ def variables_slide(prs):
     at an intake. The ranking, and the refusal to sell on T and S, is straight
     out of business-model.md -- a buyer can get SST and Hs from Copernicus for
     nothing, which is exactly why they are context here and not the pitch."""
-    s = slide(prs, PAPER)
+    s = slide(prs, GROUND)
     dk.eyebrow(s, MARGIN, Inches(0.95), "Section 01")
     headline(s, MARGIN, Inches(1.32), Inches(11.4),
              "Three variables. One of them\narrives ", "without warning.",
@@ -267,7 +267,7 @@ def event_slide(prs):
 
 # ------------------------------------------------- 4. the offering
 def offering_slide(prs):
-    s = slide(prs, PAPER)
+    s = slide(prs, GROUND)
     dk.eyebrow(s, MARGIN, Inches(0.95), "Section 03")
     headline(s, MARGIN, Inches(1.32), Inches(11.4),
              "Three ways in, in the order\nthey usually ", "happen.", size=38)
@@ -293,7 +293,7 @@ def offering_slide(prs):
 
 
 def characterisation_slide(prs):
-    s = slide(prs, PAPER)
+    s = slide(prs, GROUND)
     dk.eyebrow(s, MARGIN, Inches(0.95), "Offering 01")
     headline(s, MARGIN, Inches(1.38), Inches(6.6),
              "Start with what the water\nhas ", "already done.", size=36)
@@ -392,7 +392,7 @@ def climate_slide(prs):
     Naming it in-development is not a hedge -- in a market this sceptical it is
     the reason the rest of the deck is believed, and it converts the gap into
     the thing a first client part-funds."""
-    s = slide(prs, PAPER)
+    s = slide(prs, GROUND)
     dk.eyebrow(s, MARGIN, Inches(0.95), "Offering 03  ·  In development")
     headline(s, MARGIN, Inches(1.38), Inches(7.0),
              "And what the intake\nlooks like ", "in 2050.", size=36)
@@ -427,7 +427,7 @@ def climate_slide(prs):
 
 # ------------------------------------------------------------------ 5. close
 def statement_slide(prs):
-    s = slide(prs, PAPER)
+    s = slide(prs, GROUND)
     tf = dk.box(s, MARGIN, 0, Inches(11.5), EMU_H, anchor=MSO_ANCHOR.MIDDLE)
     p = tf.paragraphs[0]
     p.alignment = PP_ALIGN.LEFT
@@ -517,7 +517,28 @@ def build(out="oma-pitch-desal.pptx"):
     return path
 
 
+def restyle_sent(out="oma-pitch-desal-restyled.pptx"):
+    """The deck as sent (oma-pitch-desal-2026-09-23.pptx, with its PowerPoint
+    hand edits), moved to the white ground with every figure re-rendered --
+    the same load_base() the ports and ADEC decks start from. build() cannot
+    do this: it knows nothing of the hand edits. The sent file itself is left
+    alone as the record of what went out."""
+    import make_ports_deck as ports
+    prs, _ = ports.load_base()
+    path = os.path.join(dk.HERE, out)
+    prs.save(path)
+    chain.check_coordinates(path)
+    print(f"wrote {path} — {len(prs.slides._sldIdLst)} slides")
+    return path
+
+
 if __name__ == "__main__":
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("-o", "--out", default="oma-pitch-desal.pptx")
-    build(ap.parse_args().out)
+    ap.add_argument("-o", "--out", default=None)
+    ap.add_argument("--restyle-sent", action="store_true",
+                    help="restyle the deck as sent instead of generating one")
+    a = ap.parse_args()
+    if a.restyle_sent:
+        restyle_sent(a.out or "oma-pitch-desal-restyled.pptx")
+    else:
+        build(a.out or "oma-pitch-desal.pptx")

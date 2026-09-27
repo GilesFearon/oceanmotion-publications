@@ -27,12 +27,13 @@ NAVY_MID = RGBColor(0x13, 0x29, 0x4a)
 CYAN     = RGBColor(0x4f, 0xc3, 0xd7)
 CYAN_LT  = RGBColor(0xa8, 0xe0, 0xea)
 ACCENT   = RGBColor(0xff, 0x6a, 0x2b)
-PAPER    = RGBColor(0xf4, 0xef, 0xe3)
-PAPER_2  = RGBColor(0xef, 0xe9, 0xd9)
+PAPER    = RGBColor(0xf4, 0xef, 0xe3)   # light type on dark slides
+GROUND   = RGBColor(0xff, 0xff, 0xff)   # light slides (white since Sep 2026)
+PAPER_2  = RGBColor(0xf1, 0xf3, 0xf6)
 INK      = RGBColor(0x0b, 0x14, 0x20)
 INK_2    = RGBColor(0x4a, 0x56, 0x65)
 INK_3    = RGBColor(0x8a, 0x94, 0xa2)
-RULE     = RGBColor(0xd6, 0xcd, 0xb6)
+RULE     = RGBColor(0xd5, 0xdb, 0xe2)
 
 F_DISPLAY = "Instrument Serif"
 F_BODY    = "IBM Plex Sans"
@@ -305,7 +306,7 @@ title_slide(HERO_STILL,
 
 
 # ================================================================== 2. CONTENTS
-s = slide(); bg(s, PAPER)
+s = slide(); bg(s, GROUND)
 eyebrow(s, MARGIN, Inches(0.95), "Contents")
 tf = box(s, MARGIN, Inches(1.4), Inches(9), Inches(1))
 run(tf.paragraphs[0], "What we'll cover.", font=F_DISPLAY, size=44, color=INK)
@@ -334,7 +335,7 @@ run(p, " your water.", font=F_DISPLAY, size=60, color=PAPER)
 
 
 # ================================================================== 4. CONTENT
-s = slide(); bg(s, PAPER)
+s = slide(); bg(s, GROUND)
 eyebrow(s, MARGIN, Inches(0.95), "Approach")
 tf = box(s, MARGIN, Inches(1.4), Inches(10.5), Inches(1.4))
 p = tf.paragraphs[0]; p.line_spacing = 1.04
@@ -356,7 +357,7 @@ for i, t in enumerate(paras):
 
 
 # ================================================================== 5. TWO COLUMN
-s = slide(); bg(s, PAPER)
+s = slide(); bg(s, GROUND)
 eyebrow(s, MARGIN, Inches(0.95), "What we do")
 tf = box(s, MARGIN, Inches(1.4), Inches(10), Inches(1))
 run(tf.paragraphs[0], "From physics to decisions.", font=F_DISPLAY, size=42, color=INK)
@@ -385,7 +386,7 @@ for (tag, head, body_t), x in zip(cards, cx):
 
 
 # ================================================================== 6. BIG STATEMENT
-s = slide(); bg(s, PAPER)
+s = slide(); bg(s, GROUND)
 tf = box(s, MARGIN, 0, Inches(11.5), EMU_H, anchor=MSO_ANCHOR.MIDDLE)
 p = tf.paragraphs[0]; p.alignment = PP_ALIGN.LEFT; p.line_spacing = 1.06
 run(p, "The people who have to know\nwhat the sea is doing ", font=F_DISPLAY, size=46, color=INK)

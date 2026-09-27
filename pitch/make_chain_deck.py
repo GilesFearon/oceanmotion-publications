@@ -23,7 +23,7 @@ from pptx import Presentation
 from pptx.util import Inches, Pt
 
 import deckkit as dk
-from deckkit import (ACCENT, CYAN, INK, INK_2, INK_3, NAVY, PAPER, RULE,
+from deckkit import (ACCENT, CYAN, INK, INK_2, INK_3, NAVY, PAPER, GROUND, RULE,
                      F_BODY, F_DISPLAY, F_MONO, EMU_W, EMU_H, MARGIN)
 
 ASSET = dk.ASSET_DIR
@@ -170,7 +170,7 @@ def overview(prs):
     sediment model runs offline after both -- drawn across a dashed seam,
     because it is a post-process, not a coupled component."""
     s = prs.slides.add_slide(prs.slide_layouts[6])
-    dk.bg(s, PAPER)
+    dk.bg(s, GROUND)
     headline(s, MARGIN, Inches(0.72), Inches(5.2), "Five models,\none ", "chain.")
 
     # --- inputs, as a plain list down the left
@@ -249,7 +249,7 @@ def link_slide(prs, spec):
     only the map and the lit rail tick -- nothing else shifts, which is what
     makes the sequence read as one thing being walked through."""
     s = prs.slides.add_slide(prs.slide_layouts[6])
-    dk.bg(s, PAPER)
+    dk.bg(s, GROUND)
     h = Inches(5.52)
     w = int(h * 1.195)
     if spec.get("side"):
@@ -273,7 +273,7 @@ def boundaries_slide(prs):
     """Slide 3. Four separate images -- the map and the three inputs -- placed
     independently rather than composed into one figure, so each can be moved."""
     s = prs.slides.add_slide(prs.slide_layouts[6])
-    dk.bg(s, PAPER)
+    dk.bg(s, GROUND)
     rail(s, 1, "21 Jan 2022")
     headline(s, MARGIN, Inches(1.15), Inches(4.6), "The Gulf has\none ", "door.")
     specs(s, MARGIN, Inches(3.05), Inches(4.5),
@@ -301,7 +301,7 @@ def grid_slide(prs):
     """Slide 4. Three panels zooming into a nest, with every word of type held
     in PowerPoint so titles and resolutions can be reworded in the room."""
     s = prs.slides.add_slide(prs.slide_layouts[6])
-    dk.bg(s, PAPER)
+    dk.bg(s, GROUND)
     rail(s, 2, None)
     headline(s, MARGIN, Inches(1.02), Inches(4.8),
              "We refine until the site\nis ", "resolved.")
@@ -335,7 +335,7 @@ def circulation_slide(prs):
     """Slide 5. Surface currents plus the 3D cutaway they are the top layer of;
     the ACCENT box on the map is the block drawn beside it."""
     s = prs.slides.add_slide(prs.slide_layouts[6])
-    dk.bg(s, PAPER)
+    dk.bg(s, GROUND)
     # no clock: the block and the map beside it are an indicative summer
     # snapshot, not part of the January storm the rest of the deck follows
     rail(s, 3, None)
@@ -411,7 +411,7 @@ def process_slide(prs):
     next slide repeats the identical geometry with the water coloured. All the
     labels are slide text, placed from the anchors the figure reports."""
     s = prs.slides.add_slide(prs.slide_layouts[6])
-    dk.bg(s, PAPER)
+    dk.bg(s, GROUND)
     rail(s, 5, None)
     headline(s, MARGIN, Inches(0.98), Inches(5.0),
              "The seabed does nothing\nuntil it does ", "everything.")
@@ -433,7 +433,7 @@ def erosion_slide(prs):
     deck changes only the water, which is the whole argument -- stress on the
     left, sediment on the right, nothing else moved."""
     s = prs.slides.add_slide(prs.slide_layouts[6])
-    dk.bg(s, PAPER)
+    dk.bg(s, GROUND)
     rail(s, 5, None)
     headline(s, MARGIN, Inches(0.98), Inches(5.4),
              "Past a threshold, the bed\nlets ", "go.")
@@ -472,7 +472,7 @@ def turbidity_slide(prs):
     """Slide 8. The result, the observation point it was held to, and the
     calibration itself underneath."""
     s = prs.slides.add_slide(prs.slide_layouts[6])
-    dk.bg(s, PAPER)
+    dk.bg(s, GROUND)
     # the clock follows the MODIS pass, since that is what is on the slide
     rail(s, 5, "7 Feb 2022  ·  09:30 UTC")
     headline(s, MARGIN, Inches(1.05), Inches(3.4), "All of it lands\non one ",
@@ -504,7 +504,7 @@ def bookend(prs, spec):
     the headline and the explanatory text sit inside the image's footprint
     rather than above it."""
     s = prs.slides.add_slide(prs.slide_layouts[6])
-    dk.bg(s, PAPER)
+    dk.bg(s, GROUND)
     if spec["rail"] is not None:
         rail(s, spec["rail"], spec["clock"])
     wd = Inches(12.0)

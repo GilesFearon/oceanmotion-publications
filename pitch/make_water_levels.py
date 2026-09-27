@@ -132,12 +132,16 @@ CYAN    = "#4fc3d7"
 MODEL   = "#1f7f92"   # the model line on every validation panel in the deck
 MERC    = "#8c6bb1"   # MERCATOR: second model, never the accent
 ACCENT  = "#ff6a2b"
-PAPER   = "#f4efe3"
+PAPER   = "#ffffff"   # the light-slide ground (white since Sep 2026; was #f4efe3)
 INK     = "#0b1420"
 INK_2   = "#4a5665"
 INK_3   = "#8a94a2"
-RULE    = "#d6cdb6"
-GRID    = "#e2d9c3"
+RULE    = "#d5dbe2"
+# Rules have to survive the figure being shrunk to under half its pixel width
+# on a slide: a hairline in a pale grey drops out or survives depending on
+# where it lands on the pixel grid, so minors went missing at random.
+GRID    = "#dde2e8"
+GRID_LW = (1.0, 0.7)  # major, minor
 
 F_DISPLAY, F_BODY, F_MONO = "Instrument Serif", "IBM Plex Sans", "IBM Plex Mono"
 
@@ -305,7 +309,10 @@ def _axes(ax, ylabel=None, step=None, minor=None):
                        int(np.floor(hi / fine + 1e-6)) + 1):
             y = round(k * fine, 6)
             major = abs(y / step - round(y / step)) < 1e-6
-            ax.axhline(y, color=GRID, lw=0.8 if major else 0.4, zorder=0)
+            # clip_on=False: a rule on the axis limit (Khalifa's +0.6 m) is
+            # otherwise clipped to half its width and vanishes when shrunk
+            ax.axhline(y, color=GRID, lw=GRID_LW[0] if major else GRID_LW[1],
+                       zorder=0, clip_on=False)
         ax.set_axisbelow(True)
     ax.axhline(0, color=RULE, lw=0.9, zorder=1)
     if ylabel:
@@ -658,7 +665,7 @@ def fig_ukc_dashboard(g):
         json.dump(verdict, fh, indent=1)
     print(f"    dashboard: {json.dumps(verdict)}")
 
-    GRIDC = "#dcd3bd"
+    GRIDC = "#e1e5ea"
     RED, GREEN = "#d6453d", "#3f9b62"
     fig = plt.figure(figsize=(7.0, 5.0), facecolor=PAPER)
     boxes = [(0.60, 0.33), (0.43, 0.12), (0.30, 0.08), (0.06, 0.19)]
@@ -765,7 +772,7 @@ if __name__ == "__main__":
                     help="extract the Abu Dhabi residual from the hindcast")
     ap.add_argument("--all", action="store_true", help="render every figure")
     ap.add_argument("--croco-only", action="store_true",
-                    help="render only the CROCO-only Salmiya residual (ADEC deck)")
+                    help="render only the CROCO-only residuals (ADEC deck)")
     args = ap.parse_args()
 
     if args.extract:
@@ -780,6 +787,7 @@ if __name__ == "__main__":
         for n, g in gs.items():
             fig_tide(g, n)
             fig_residual(g, n)
+            fig_residual(g, n, merc=False)
         if os.path.exists(CACHE):
             d = xr.open_dataset(CACHE)
             fig_abudhabi(d)
@@ -791,4 +799,5 @@ if __name__ == "__main__":
         import matplotlib
         matplotlib.use("Agg")
         register_fonts()
-        fig_residual(gauge("Salmiya"), "Salmiya", merc=False)
+        for n in ("Salmiya", "Majis"):
+            fig_residual(gauge(n), n, merc=False)
