@@ -567,6 +567,43 @@ def majis_slide(prs):
         "18.4 cm. " + RESID_METHOD)
 
 
+def gauge_sites(s, sid=247):
+    """Swap the circulation map for the render with the gauges marked, and set
+    their names as native text beside the markers. Positions come from the
+    anchors file the figure writes, so the names follow the map. Salmiya's
+    name goes to the right, over Kuwait; Majis sits near the map's right
+    edge, beside the 3D block, so its name goes underneath. Shared by the
+    ports and ADEC decks, which both test against these two gauges."""
+    import json
+    from pptx.enum.text import PP_ALIGN
+    pic = dk.swap_picture(s, sid, asset("chain-5-circulation-sites.png"))
+    with open(asset("chain-5-circulation-sites.anchors.json")) as fh:
+        anchors = json.load(fh)
+    w = Inches(0.9)
+    place = {"Salmiya": (Inches(0.15), -Inches(0.13), PP_ALIGN.LEFT),
+             "Majis": (-w / 2, Inches(0.08), PP_ALIGN.CENTER)}
+    if set(anchors) != set(place):
+        raise SystemExit(f"sites on the map {sorted(anchors)} != labelled "
+                         f"{sorted(place)}")
+    for name, a in anchors.items():
+        dx, dy, align = place[name]
+        x = pic.left + a["x"] * pic.width
+        y = pic.top + a["y"] * pic.height
+        tf = label(s, x + dx, y + dy, w, name, color=dk.INK, size=9,
+                         align=align)
+        if name == "Salmiya":
+            # it sits on the densest arrows in the map: a white chip, cut to
+            # the word, keeps it legible without hiding more than it must
+            box = tf._parent
+            box.fill.solid()
+            box.fill.fore_color.rgb = dk.GROUND
+            box.width = Inches(0.78)
+            tf.word_wrap = False
+            tf.margin_left = tf.margin_right = Inches(0.04)
+    notes(s, "The two dots are the tide gauges section 02 tests against: "
+             "Salmiya at the head of the Gulf, Majis outside Hormuz.")
+
+
 # ------------------------------------------------------------------ 03
 def abudhabi_slide(prs):
     s = new_slide(prs)
@@ -646,6 +683,9 @@ def retext_kept(prs, k):
             "Tested against tide gauges",
             "Water levels at your port",
             "What we’d build for you"])])
+
+    # 6. circulation: the map carries the two tide gauges of section 02
+    gauge_sites(k[6])
 
     # 4-7. the chain slides: only the rail's last stop changes
     for n, sid in ((4, None), (5, 238), (6, None), (7, None)):
