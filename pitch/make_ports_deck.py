@@ -376,59 +376,123 @@ def dashboard_panel(s):
 
 
 # ------------------------------------------------------------------ 02
-def ukc_diagram(s, top=Inches(2.05)):
-    """UKC as a budget, drawn as native shapes so every level and label can be
-    moved in the room: on the water side the predicted tide and the residual
-    (drawn as a set-down, the case this slide is about); on the ship side the
-    allowances taken off the static draught before any clearance is left --
-    squat, wave response, heel and trim. Other terms a passage plan carries
-    (water density, survey and siltation tolerance) are in the notes."""
-    oy = top - Inches(2.05)                       # vertical offset
-    Y = lambda v: Inches(v) + oy
-    lx, lw = MARGIN, Inches(1.30)                 # level labels, right-aligned
-    x0, x1 = Inches(2.32), Inches(5.05)           # water
-    hx0, hx1 = Inches(2.62), Inches(4.12)         # hull
-    y_pt, y_ws, y_cd = Y(2.55), Y(2.92), Y(3.55)
-    y_keel, y_sb, y_bed = Y(4.20), Y(5.95), Y(6.30)
+UKC_TERMS = [
+    # sign, term, forecast by the model?
+    ("", "charted depth", False),
+    ("+", "predicted tide", False),
+    ("+", "residual", True),
+    ("−", "vessel draught", False),
+    ("−", "squat", False),
+    ("−", "waves", True),
+    ("−", "heel", False),
+    ("−", "trim", False),
+]
 
-    dk.rect(s, x0, y_ws, x1 - x0, y_sb - y_ws, RGBColor(0xd6, 0xea, 0xee))
+
+def ukc_diagram(s):
+    """UKC as a budget, drawn as native shapes so every level and label can be
+    moved in the room. On the water side, the predicted tide above chart datum
+    and the residual on top of it, drawn as a set-down -- the case that eats
+    clearance. On the ship side, the vessel draught and then the allowances
+    taken off it one band at a time: squat, waves, heel, trim. What is left
+    above the seabed is the under-keel clearance, and only it is orange: it
+    is the number being predicted. Water density and survey tolerance, which
+    a passage plan also carries, are in the notes."""
+    Y = Inches
+    lx, lw = MARGIN, Inches(1.53)                  # level labels, right-aligned
+    x0, x1 = Inches(2.55), Inches(7.55)            # water
+    hx0, hx1 = Inches(4.05), Inches(6.05)          # hull
+    y_pt, y_ws, y_cd = Y(2.30), Y(2.72), Y(3.40)
+    y_keel = Y(4.45)
+    y_sb, y_bed = Y(6.45), Y(6.72)
+    bands = [("squat", 0.30, RGBColor(0xe3, 0xe7, 0xec)),
+             ("waves", 0.44, RGBColor(0xcf, 0xe0, 0xea)),
+             ("heel", 0.22, RGBColor(0xe8, 0xeb, 0xef)),
+             ("trim", 0.22, RGBColor(0xdc, 0xe2, 0xe9))]
+
+    # water, seabed and the three levels
+    dk.rect(s, x0, y_ws, x1 - x0, y_sb - y_ws, RGBColor(0xe6, 0xf0, 0xf4))
     dk.rect(s, x0, y_sb, x1 - x0, y_bed - y_sb, RGBColor(0xe0, 0xd2, 0xae))
     line(s, x0, y_pt, x1, y_pt, INK_3, Pt(1.25), MSO_LINE_DASH_STYLE.DASH)
     line(s, x0, y_ws, x1, y_ws, NAVY, Pt(1.75))
     line(s, x0, y_cd, x1, y_cd, INK_3, Pt(0.9), MSO_LINE_DASH_STYLE.ROUND_DOT)
     for y, text, c in ((y_pt, "predicted tide", INK_3),
-                       (y_ws, "actual water", NAVY),
+                       (y_ws, "actual water level", NAVY),
                        (y_cd, "chart datum", INK_3),
-                       (y_sb, "dredged depth", INK_2)):
+                       (y_sb, "seabed", INK_2)):
         label(s, lx, y - Inches(0.13), lw, text, color=c, align=PP_ALIGN.RIGHT,
-              size=8.5)
+              size=9)
 
+    # the water side: tide above datum, charted depth below it, residual
+    ax_ = x0 + Inches(0.32)
+    line(s, ax_, y_cd - Pt(2), ax_, y_pt + Pt(2), INK_2, Pt(1.25),
+         heads=("head", "tail"))
+    label(s, ax_ + Inches(0.10), (y_pt + y_cd) / 2 - Inches(0.02), Inches(1.2),
+          "predicted tide", color=INK_2, size=9)
+    line(s, ax_, y_cd + Pt(2), ax_, y_sb - Pt(2), INK_2, Pt(1.25),
+         heads=("head", "tail"))
+    label(s, ax_ + Inches(0.10), (y_cd + y_sb) / 2 - Inches(0.13), Inches(1.2),
+          "charted depth", color=INK_2, size=9)
+    rx = x1 - Inches(0.30)
+    line(s, rx, y_pt + Pt(2), rx, y_ws - Pt(2), INK_2, Pt(1.25),
+         heads=("head", "tail"))
+    label(s, rx + Inches(0.12), (y_pt + y_ws) / 2 - Inches(0.13), Inches(1.0),
+          "residual", color=INK_2, size=9)
+
+    # the ship: hull down to the static keel, draught marked inside it
     hull = s.shapes.add_shape(MSO_SHAPE.FLOWCHART_MANUAL_OPERATION,
-                              hx0, Y(2.20), hx1 - hx0, y_keel - Y(2.20))
+                              hx0, Y(2.00), hx1 - hx0, y_keel - Y(2.00))
     hull.fill.solid(); hull.fill.fore_color.rgb = NAVY_MID
     hull.line.fill.background()
     dk.flatten(hull)
+    # the hull narrows to the keel, so the arrow runs down its middle with
+    # the name on two short lines beside it
+    dx = (hx0 + hx1) / 2 - Inches(0.25)
+    line(s, dx, y_ws + Pt(2), dx, y_keel - Pt(2), PAPER, Pt(1.25),
+         heads=("head", "tail"))
+    tf = label(s, dx + Inches(0.10), (y_ws + y_keel) / 2 - Inches(0.20),
+               Inches(0.8), "vessel\ndraught", color=PAPER, size=9)
+    tf.word_wrap = False
 
-    # allowances under the keel, then what is left
-    bands = [("squat", Y(4.20), Y(4.52), RGBColor(0xff, 0xd9, 0xc7)),
-             ("wave response", Y(4.52), Y(4.94), RGBColor(0x9f, 0xd2, 0xdc)),
-             ("heel & trim", Y(4.94), Y(5.20), RGBColor(0xdf, 0xe4, 0xea))]
-    for name, a, b, c in bands:
-        dk.rect(s, hx0, a, hx1 - hx0, b - a, c)
-        label(s, hx1 + Inches(0.10), (a + b) / 2 - Inches(0.13), Inches(1.55),
-              name, color=INK_2, size=8.5)
+    # the allowances, one band each, then what is left: UKC
+    y = y_keel
+    for name, h, c in bands:
+        b = y + Inches(h)
+        dk.rect(s, hx0, y, hx1 - hx0, b - y, c, line=GROUND)
+        label(s, hx1 + Inches(0.12), (y + b) / 2 - Inches(0.13), Inches(1.3),
+              name, color=INK_2, size=9)
+        y = b
+    dk.rect(s, hx0, y, hx1 - hx0, y_sb - y, RGBColor(0xff, 0xe4, 0xd8))
     cx = (hx0 + hx1) / 2
-    line(s, cx, Y(5.20) + Pt(2), cx, y_sb - Pt(2), ACCENT, Pt(1.5),
+    line(s, cx, y + Pt(2), cx, y_sb - Pt(2), ACCENT, Pt(1.75),
          heads=("head", "tail"))
-    label(s, hx1 + Inches(0.10), Y(5.44), Inches(1.55), "net clearance",
-          color=ACCENT, size=8.5)
+    tf = label(s, hx1 + Inches(0.12), (y + y_sb) / 2 - Inches(0.13),
+               Inches(1.45), "under-keel clearance", color=ACCENT, size=9.5)
+    tf.paragraphs[0].runs[0].font.bold = True
 
-    # the residual, beside the ship
-    rx = Inches(4.62)
-    line(s, rx, y_pt + Pt(2), rx, y_ws - Pt(2), ACCENT, Pt(1.5),
-         heads=("head", "tail"))
-    label(s, rx - Inches(0.35), y_pt - Inches(0.40), Inches(1.2), "residual",
-          color=ACCENT, size=8.5)
+
+def ukc_budget(s, left, top, width):
+    """The same budget written as a sum, beside the drawing. The two terms
+    the model forecasts are tagged; the answer is the one orange line."""
+    dk.eyebrow(s, left, top, "The budget")
+    y = top + Inches(0.50)
+    row = Inches(0.36)
+    for sign, term, fc in UKC_TERMS:
+        tf = dk.box(s, left, y, width, row, anchor=MSO_ANCHOR.MIDDLE)
+        p = tf.paragraphs[0]
+        dk.run(p, f"{sign or ' '}   ", font=F_MONO, size=13, color=INK_3)
+        dk.run(p, term, font=F_BODY, size=14, color=INK)
+        if fc:
+            dk.run(p, "     model forecast", font=F_MONO, size=8.5,
+                   color=INK_3, track=80, caps=True)
+        y += row
+    dk.rect(s, left, y + Inches(0.06), Inches(2.9), Pt(1), INK_3)
+    tf = dk.box(s, left, y + Inches(0.14), width, Inches(0.42),
+                anchor=MSO_ANCHOR.MIDDLE)
+    p = tf.paragraphs[0]
+    dk.run(p, "=   ", font=F_MONO, size=13, color=ACCENT)
+    dk.run(p, "under-keel clearance", font=F_BODY, size=16, color=ACCENT,
+           bold=True)
 
 
 # What the tide slide used to say, now in each gauge slide's notes. The tide
@@ -455,13 +519,12 @@ GAUGE = {"Salmiya": "Salmiya, Kuwait", "Majis": "Majis, Oman"}
 def gauge_slide(prs, name, head, stats, cap, note_text, strip=False):
     """One gauge, one slide: the figure carries the predicted tide, the
     residual over the whole record and a zoom on it (make_water_levels
-    fig_gauge), under a headline and three numbers."""
+    fig_gauge), under a headline and a table of the residual skill.
+    stats = ((r, RMSE) for CROCO, (r, RMSE) for MERCATOR), as strings."""
     s = new_slide(prs)
     rail(s, 4)
     desal.headline(s, MARGIN, Inches(1.00), Inches(5.6), head, size=30)
-    for k, (big, lbl) in enumerate(stats):
-        stat(s, Inches(6.75) + k * Inches(2.0), Inches(0.95), big, lbl,
-             width=Inches(1.9), size=40)
+    stats_table(s, Inches(6.80), Inches(0.80), stats)
     dk.picture(s, asset(f"wl-gauge-{name.lower()}.png"), MARGIN,
                Inches(2.15), width=Inches(11.0))
     if strip:
@@ -473,6 +536,78 @@ def gauge_slide(prs, name, head, stats, cap, note_text, strip=False):
         dk.run(p, cap, font=F_BODY, size=12.5, color=INK_2, italic=True)
     notes(s, (cap + "  ") * strip + TIDE_NOTES[name] + note_text)
     return s
+
+
+# Series colours, as the figures draw them (ts_style): the table's column
+# heads carry a swatch so the numbers read against the right line.
+import ts_style as ts
+SERIES = (("CROCO", RGBColor.from_string(ts.CROCO[1:])),
+          ("MERCATOR + air pressure", RGBColor.from_string(ts.MERC[1:])))
+
+
+def _cell_rule(cell, color, side="b", width=Pt(0.9)):
+    """A single hairline on one side of a table cell. Borders go ahead of the
+    fill in <a:tcPr>, as the schema orders them."""
+    tcPr = cell._tc.get_or_add_tcPr()
+    ln = tcPr.makeelement(qn(f"a:ln{side.upper()}"),
+                          {"w": str(int(width)), "cmpd": "sng"})
+    fill = ln.makeelement(qn("a:solidFill"), {})
+    clr = fill.makeelement(qn("a:srgbClr"), {"val": str(color)})
+    fill.append(clr)
+    ln.append(fill)
+    tcPr.insert(0, ln)
+
+
+def stats_table(s, left, top, stats):
+    """Residual skill at a gauge as a native table: models as columns,
+    correlation and RMSE as rows. Editable in PowerPoint like any table; no
+    theme style, so it wears the deck's type and rules rather than
+    PowerPoint's banded blue."""
+    widths = (Inches(1.30), Inches(1.75), Inches(2.55))
+    heights = (Inches(0.36), Inches(0.46), Inches(0.46))
+    gf = s.shapes.add_table(3, 3, dk._emu(left), dk._emu(top),
+                            sum(widths), sum(heights))
+    tbl = gf.table
+    tblPr = tbl._tbl.tblPr
+    for k in ("firstRow", "bandRow"):
+        tblPr.set(k, "0")
+    sid = tblPr.find(qn("a:tableStyleId"))
+    if sid is not None:
+        tblPr.remove(sid)
+    for j, w in enumerate(widths):
+        tbl.columns[j].width = w
+    for i, h in enumerate(heights):
+        tbl.rows[i].height = h
+
+    def put(i, j, runs, align=PP_ALIGN.LEFT):
+        cell = tbl.cell(i, j)
+        cell.fill.background()
+        cell.margin_left, cell.margin_right = Inches(0.06), Inches(0.06)
+        cell.margin_top = cell.margin_bottom = Inches(0.02)
+        cell.vertical_anchor = MSO_ANCHOR.MIDDLE
+        tf = cell.text_frame
+        tf.word_wrap = False
+        p = tf.paragraphs[0]
+        p.alignment = align
+        for text, kw in runs:
+            dk.run(p, text, **kw)
+        return cell
+
+    head = dict(font=F_MONO, size=9, color=INK_2, track=100, caps=True)
+    put(0, 0, [("", head)])
+    for j, (name, c) in enumerate(SERIES, 1):
+        put(0, j, [("■  ", dict(font=F_BODY, size=10, color=c)),
+                   (name, head)])
+    rows = ("Correlation", "RMSE")
+    for i, lab in enumerate(rows, 1):
+        put(i, 0, [(lab, head)])
+        for j in (1, 2):
+            put(i, j, [(stats[j - 1][i - 1],
+                        dict(font=F_DISPLAY, size=26, color=INK))])
+    for i in (0, 1):
+        for j in range(3):
+            _cell_rule(tbl.cell(i, j), RULE if i else INK_3)
+    return gf
 
 
 def forecasts_strip(s, top):
@@ -525,9 +660,7 @@ RESID_METHOD = ("Residual only. Gauge, CROCO and MERCATOR each put through the "
 def salmiya_slide(prs):
     return gauge_slide(
         prs, "Salmiya", "Salmiya, Kuwait: the surge,\nevent by event.",
-        [("0.88", "CROCO\ncorrelation\nRMSE 8.7 cm"),
-         ("0.93", "MERCATOR\ncorrelation\nRMSE 6.9 cm"),
-         ("0.94", "mean of the two\ncorrelation\nRMSE 6.4 cm")],
+        (("0.88", "8.7 cm"), ("0.93", "6.9 cm")),
         "Residual only: gauge, our model and MERCATOR (with the air-pressure "
         "response added) put through one harmonic analysis over the gauge "
         "record, as the live forecast does; 15 Jun 2023 – 26 Mar 2024. Some "
@@ -551,9 +684,7 @@ def majis_slide(prs):
     scale, so the numbers carry the comparison with Salmiya."""
     return gauge_slide(
         prs, "Majis", "Majis, Oman: outside the Gulf,\nthe surge is small.",
-        [("±6 cm", "typical surge\nSalmiya ±18 cm"),
-         ("0.98", "tide correlation\nSalmiya 0.87"),
-         ("0.81", "surge correlation\nSalmiya 0.94")],
+        (("0.65", "5.3 cm"), ("0.85", "3.1 cm")),
         "The surge is generated inside the Gulf by wind over a shallow, "
         "enclosed sea; the tide comes in from outside. At Majis the tide is "
         "near exact and the surge a third of Salmiya's. Gauge record 6 Feb "
@@ -627,39 +758,35 @@ def abudhabi_slide(prs):
     return s
 
 
-def tidetable_slide(prs):
-    """The UKC budget and the week that breaks it, on one slide: the diagram
-    says where the residual sits in the budget, the figure shows a spring-tide
-    week when it was large."""
+def ukc_slide(prs):
+    """Under-keel clearance, and nothing else: the budget drawn as a section
+    through the berth, and written out as a sum beside it. The time series of
+    a set-down week that used to share this slide is gone (the figure is still
+    rendered, as wl-tidetable-khalifa.png, if it is wanted back)."""
     s = new_slide(prs)
-    dk.eyebrow(s, MARGIN, Inches(0.95), "Section 03  ·  Khalifa Port")
+    dk.eyebrow(s, MARGIN, Inches(0.95), "Section 03  ·  Under-keel clearance")
     desal.headline(s, MARGIN, Inches(1.25), Inches(11.4),
-                   "What the tide table didn't say.", size=32)
-    ukc_diagram(s, top=Inches(2.05))
-    dk.picture(s, asset("wl-tidetable-khalifa.png"), Inches(6.05),
-               Inches(1.95), width=Inches(6.35))
-    desal.bullets(s, Inches(6.05), Inches(5.52), Inches(6.35), [
-        "Early February 2019: a set-down of 0.20 – 0.28 m held for three days "
-        "as the tides built to springs.",
-        "At low water on 2 February the sea stood at −1.03 m against a "
-        "predicted −0.82 m: 21 cm of clearance the passage plan counted on.",
-    ], size=11.5)
-    desal.caption(s, MARGIN, Inches(7.02), Inches(11.5),
-                  "hindcast, not a forecast issued at the time — Khalifa Port, "
-                  "nearest model cell; levels about model mean sea level")
-    notes(s, "Budget: charted depth + predicted tide + residual - static "
-             "draught - squat - wave response - heel and trim = net clearance. "
-             "A passage plan also carries water density (fresh water "
-             "allowance) and survey / siltation tolerance; the drawing keeps to "
-             "the terms that move hour by hour. The model forecasts the "
-             "residual and the waves that drive vessel response. Week: 29 Jan "
-             "- 5 Feb 2019. No spring low water in 2016-2024 coincides "
-             "exactly with a residual below -0.25 m at Khalifa - such "
-             "set-downs are rare (~4 a year) and short; this is the closest: "
-             "-0.20 to -0.28 m from 31 Jan to 3 Feb, 12 hours below -0.25 m, "
-             "and -0.21 m at the 2 Feb low water (predicted -0.82, water "
-             "-1.03). Set-downs of 0.25 m or more: about four events a year "
-             "at Khalifa.")
+                   "Under-keel clearance, term by term.", size=32)
+    ukc_diagram(s)
+    ukc_budget(s, Inches(8.75), Inches(2.25), Inches(4.2))
+    desal.caption(s, MARGIN, Inches(6.95), Inches(11.5),
+                  "the residual and the waves move hour by hour, and the model "
+                  "forecasts both — so the clearance can be forecast, not "
+                  "assumed")
+    notes(s, "Budget: charted depth + predicted tide + residual - vessel "
+             "draught - squat - waves - heel - trim = under-keel clearance. "
+             "Drawn with the residual as a set-down, the case that eats "
+             "clearance. A passage plan also carries water density (fresh "
+             "water allowance) and survey / siltation tolerance; the drawing "
+             "keeps to the terms that move hour by hour. The model forecasts "
+             "the residual and the waves that drive vessel response; the "
+             "tide comes from the port's own harmonics. For an example of "
+             "the residual in action: at Khalifa Port, early February 2019, a "
+             "set-down of 0.20-0.28 m held for three days as the tides built "
+             "to springs - at the 2 Feb low water the sea stood at -1.03 m "
+             "against a predicted -0.82 m (hindcast, nearest model cell). "
+             "Set-downs of 0.25 m or more: about four events a year at "
+             "Khalifa.")
     return s
 
 
@@ -815,7 +942,7 @@ def build(out="oma-pitch-ports.pptx"):
     maj = majis_slide(prs)
     d03 = divider(prs, "Section 03", "Water levels at your port")
     ad = abudhabi_slide(prs)
-    tt = tidetable_slide(prs)
+    tt = ukc_slide(prs)
 
     reorder(prs, [k[1], k[2],
                   k[3], k[4], k[5], k[6], k[7],              # 01 the model
