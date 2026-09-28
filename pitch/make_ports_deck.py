@@ -19,9 +19,9 @@ lookup fails loudly rather than skipping.
 
 Story, following the desal deck's thread:
   01  how the model works        (kept: inputs, grid, circulation, waves)
-  02  tested against tide gauges UKC as a water level budget; the predicted
-                                 tide at Salmiya and Majis; the non-tidal
-                                 residual at both
+  02  tested against tide gauges one slide per gauge, Salmiya and Majis:
+                                 the predicted tide, the non-tidal residual
+                                 and a zoom on it
   03  water levels at your port  the modelled residual at Khalifa Port -- no
                                  gauge, said so on the slide -- and a week of
                                  spring lows where the total water level went
@@ -90,6 +90,10 @@ BASE_PICTURES = {
     (10, 337): "chain-7c-modis.png", (10, 338): "chain-7a-calibration.png",
     (11, 354): "chain-8-cascade.gif",
 }
+# Figures redrawn to a new shape since the base deck was edited: crop cleared,
+# frame refitted (see deckkit.swap_picture). The SST panel is 5:1 to match
+# the frame's visible shape, so the refit leaves the layout as it was.
+BASE_REFIT = {(6, 249)}
 # The desal dashboard screenshot has no generator; it is whitened in place.
 BASE_SCREENSHOT = (15, 423)
 
@@ -104,7 +108,8 @@ def load_base():
         raise SystemExit(f"{BASE} has {len(base)} slides, expected 18")
     dk.recolour_fills(prs)
     for (n, sid), name in BASE_PICTURES.items():
-        dk.swap_picture(base[n - 1], sid, asset(name))
+        dk.swap_picture(base[n - 1], sid, asset(name),
+                        refit=(n, sid) in BASE_REFIT)
     n, sid = BASE_SCREENSHOT
     pic = shape(base[n - 1], sid)
     import tempfile
@@ -426,64 +431,47 @@ def ukc_diagram(s, top=Inches(2.05)):
           color=ACCENT, size=8.5)
 
 
-def tide_slide(prs):
-    """The predicted tide as context, not as the pitch: a port's local
-    forecast takes its tide from the gauge's own harmonics, so what this slide
-    has to show is that the model's tide is sound, over a whole month, with
-    the gauge records' lengths stated."""
-    s = new_slide(prs)
-    rail(s, 4)
-    desal.headline(s, MARGIN, Inches(0.92), Inches(6.2),
-                   "The predicted tide,\nchecked at two gauges.", size=30)
-    chain.specs(s, Inches(7.35), Inches(1.00), Inches(5.3),
-                [("Majis", "6 Feb 2023 – 24 Mar 2024  ·  14 months"),
-                 ("Salmiya", "15 Jun 2023 – 26 Mar 2024  ·  9 months"),
-                 ("sampling", "hourly"),
-                 ("timing", "model ~25 min late at Majis, 1–1.5 h at Salmiya")],
-                "gauge records")
-    for k, name in enumerate(("Majis", "Salmiya")):
-        top = Inches(2.05) + k * Inches(2.35)
-        label(s, MARGIN, top, Inches(8), f"{GAUGE[name]}  ·  August 2023",
-              color=INK_2, size=9.5)
-        dk.picture(s, asset(f"wl-tide-{name.lower()}.png"), MARGIN,
-                   top + Inches(0.20), width=Inches(11.0))
-    desal.caption(s, MARGIN, Inches(6.88), Inches(11.5),
-                  "operationally the local forecast takes its tide from the "
-                  "gauge's own harmonics — the residual is what the model brings")
-    notes(s, "Model and gauge harmonics put through the same utide fit over "
-             "each gauge's whole record; r and RMSE on the figures are over "
-             "that whole record, August 2023 is only what is drawn. The model "
-             "constituents are the operational ones, fitted over each gauge's "
-             "period exactly as the gauge is. Majis: "
-             "amplitudes within 2.1 cm on M2 S2 N2 K1 O1, and the model lags "
-             "by the same ~25 min on every constituent - looks like a "
-             "timestamp convention on the hourly averages, to be checked. "
-             "Salmiya: M2 -5.5 cm, O1 +7 cm, lag 61 min (M2) to 95 min (K1); "
-             "the RMSE of 38 cm is mostly that timing, accumulated along the "
-             "tide's path from Hormuz to the head of the Gulf.")
-    return s
+# What the tide slide used to say, now in each gauge slide's notes. The tide
+# is context rather than the pitch: a port's local forecast takes its tide
+# from the gauge's own harmonics, so the top panel only has to show that the
+# model's tide is sound.
+TIDE_NOTES = {
+    "Salmiya": "Tide (top panel, August 2023 drawn; r and RMSE over the whole "
+               "record): M2 -5.5 cm, O1 +7 cm, lag 61 min (M2) to 95 min "
+               "(K1); the 38 cm RMSE is mostly that timing, accumulated along "
+               "the tide's path from Hormuz to the head of the Gulf. "
+               "Operationally the local forecast takes its tide from the "
+               "gauge's own harmonics - the residual is what the model brings. ",
+    "Majis": "Tide (top panel, August 2023 drawn): amplitudes within 2.1 cm "
+             "on M2 S2 N2 K1 O1, and the model lags by the same ~25 min on "
+             "every constituent - looks like a timestamp convention on the "
+             "hourly averages, to be checked. ",
+}
 
 
 GAUGE = {"Salmiya": "Salmiya, Kuwait", "Majis": "Majis, Oman"}
 
 
-def residual_slide(prs, name, head, stats, cap, note_text, strip=False):
+def gauge_slide(prs, name, head, stats, cap, note_text, strip=False):
+    """One gauge, one slide: the figure carries the predicted tide, the
+    residual over the whole record and a zoom on it (make_water_levels
+    fig_gauge), under a headline and three numbers."""
     s = new_slide(prs)
     rail(s, 4)
     desal.headline(s, MARGIN, Inches(1.00), Inches(5.6), head, size=30)
     for k, (big, lbl) in enumerate(stats):
         stat(s, Inches(6.75) + k * Inches(2.0), Inches(0.95), big, lbl,
              width=Inches(1.9), size=40)
-    dk.picture(s, asset(f"wl-residual-{name.lower()}.png"), MARGIN,
-               Inches(2.62), width=Inches(11.0))
+    dk.picture(s, asset(f"wl-gauge-{name.lower()}.png"), MARGIN,
+               Inches(2.15), width=Inches(11.0))
     if strip:
-        forecasts_strip(s, Inches(6.08))
+        forecasts_strip(s, Inches(6.32))
     else:
-        tf = dk.box(s, MARGIN, Inches(6.30), Inches(11.5), Inches(0.9))
+        tf = dk.box(s, MARGIN, Inches(6.40), Inches(11.5), Inches(0.9))
         p = tf.paragraphs[0]
         p.line_spacing = 1.3
         dk.run(p, cap, font=F_BODY, size=12.5, color=INK_2, italic=True)
-    notes(s, (cap + "  ") * strip + note_text)
+    notes(s, (cap + "  ") * strip + TIDE_NOTES[name] + note_text)
     return s
 
 
@@ -491,16 +479,16 @@ def forecasts_strip(s, top):
     """The operational point, given a band of its own: the surge is forecast
     three times over, every day, and the spread between the three is the
     confidence band on the water level."""
-    h = Inches(1.20)
+    h = Inches(1.05)
     dk.rect(s, MARGIN, top, Inches(11.5), h, PAPER_2)
-    tf = dk.box(s, MARGIN + Inches(0.30), top + Inches(0.16), Inches(2.9),
+    tf = dk.box(s, MARGIN + Inches(0.30), top + Inches(0.13), Inches(2.9),
                 Inches(0.9))
     dk.run(tf.paragraphs[0], "Operationally", font=F_MONO, size=9,
            color=ACCENT, track=160, caps=True)
     p = tf.add_paragraph()
     p.space_before = Pt(4)
     p.line_spacing = 1.02
-    dk.run(p, "three surge forecasts,\nevery day.", font=F_DISPLAY, size=20,
+    dk.run(p, "three surge forecasts,\nevery day.", font=F_DISPLAY, size=17,
            color=INK)
     cols = [("CROCO", "forced by GFS"),
             ("CROCO", "forced by ECMWF"),
@@ -509,7 +497,7 @@ def forecasts_strip(s, top):
                                 "the confidence band")]
     x, widths = MARGIN + Inches(3.35), (1.65, 1.65, 1.75, 3.2)
     for (head, sub), w in zip(cols, widths):
-        tf = dk.box(s, x, top + Inches(0.26), Inches(w - 0.15), Inches(0.8))
+        tf = dk.box(s, x, top + Inches(0.20), Inches(w - 0.15), Inches(0.8))
         dk.run(tf.paragraphs[0], head, font=F_BODY, size=13, color=INK,
                bold=True)
         p = tf.add_paragraph()
@@ -535,7 +523,7 @@ RESID_METHOD = ("Residual only. Gauge, CROCO and MERCATOR each put through the "
 
 
 def salmiya_slide(prs):
-    return residual_slide(
+    return gauge_slide(
         prs, "Salmiya", "Salmiya, Kuwait: the surge,\nevent by event.",
         [("0.88", "CROCO\ncorrelation\nRMSE 8.7 cm"),
          ("0.93", "MERCATOR\ncorrelation\nRMSE 6.9 cm"),
@@ -559,9 +547,9 @@ def majis_slide(prs):
     """The contrast slide. The surge is made inside the Gulf by wind over a
     shallow enclosed sea; the tide comes in through Hormuz. So outside, at
     Majis, the tide is easy and the surge is small and hard to pick out; at
-    the head of the Gulf it is the other way round. Same vertical scale as
-    Salmiya, so the difference in size is the first thing seen."""
-    return residual_slide(
+    the head of the Gulf it is the other way round. The figure is on its own
+    scale, so the numbers carry the comparison with Salmiya."""
+    return gauge_slide(
         prs, "Majis", "Majis, Oman: outside the Gulf,\nthe surge is small.",
         [("±6 cm", "typical surge\nSalmiya ±18 cm"),
          ("0.98", "tide correlation\nSalmiya 0.87"),
@@ -783,7 +771,6 @@ def build(out="oma-pitch-ports.pptx"):
     retext_kept(prs, k)
 
     d02 = divider(prs, "Section 02", "Tested against tide gauges")
-    tide = tide_slide(prs)
     sal = salmiya_slide(prs)
     maj = majis_slide(prs)
     d03 = divider(prs, "Section 03", "Water levels at your port")
@@ -792,7 +779,7 @@ def build(out="oma-pitch-ports.pptx"):
 
     reorder(prs, [k[1], k[2],
                   k[3], k[4], k[5], k[6], k[7],              # 01 the model
-                  d02, tide, sal, maj,                        # 02 the gauges
+                  d02, sal, maj,                              # 02 the gauges
                   d03, ad, tt,                                # 03 your port
                   k[12], k[13], k[14], k[15], k[16], k[17],   # 04 the offer
                   k[18]])

@@ -100,13 +100,13 @@ def salmiya_slide(prs):
             ("±18 cm", "typical surge\nat the gauge")]):
         ports.stat(s, Inches(6.75) + k * Inches(2.0), Inches(0.95), big, lbl,
                    width=Inches(1.9), size=40)
-    dk.picture(s, ports.asset("wl-residual-salmiya-croco.png"), MARGIN,
-               Inches(2.62), width=Inches(11.0))
+    dk.picture(s, ports.asset("wl-gauge-salmiya-croco.png"), MARGIN,
+               Inches(2.15), width=Inches(11.0))
     desal.caption(s, MARGIN, Inches(6.40), Inches(11.5),
-                  "non-tidal residual only: gauge and model put through the "
-                  "same harmonic analysis over the gauge record, "
-                  "15 Jun 2023 – 26 Mar 2024")
-    notes(s, "Salmiya: 6 834 hourly pairs (6 gauge spikes removed). CROCO "
+                  "predicted tide, then the non-tidal residual: gauge and "
+                  "model put through the same harmonic analysis over the "
+                  "gauge record, 15 Jun 2023 – 26 Mar 2024")
+    notes(s, ports.TIDE_NOTES["Salmiya"] + "Salmiya: 6 834 hourly pairs (6 gauge spikes removed). CROCO "
              "r 0.88, RMSE 8.7 cm. Gauge residual -0.72 to +0.48 m, std "
              "18.4 cm. Residual = series minus its own utide fit over the "
              "gauge record period, trend=False. The surge is generated inside "
@@ -132,13 +132,14 @@ def majis_slide(prs):
             ("±6 cm", "typical surge\nat the gauge")]):
         ports.stat(s, Inches(6.75) + k * Inches(2.0), Inches(0.95), big, lbl,
                    width=Inches(1.9), size=40)
-    dk.picture(s, ports.asset("wl-residual-majis-croco.png"), MARGIN,
-               Inches(2.62), width=Inches(11.0))
+    dk.picture(s, ports.asset("wl-gauge-majis-croco.png"), MARGIN,
+               Inches(2.15), width=Inches(11.0))
     desal.caption(s, MARGIN, Inches(6.40), Inches(11.5),
-                  "non-tidal residual only, as at Salmiya; 6 Feb 2023 – "
-                  "24 Mar 2024, unphysical gauge spikes removed (1.6% of "
-                  "readings). The tide here is near exact: correlation 0.98.")
-    notes(s, "Majis: 8 482 hourly pairs after the spike QC (155 readings, "
+                  "predicted tide, then the non-tidal residual, as at "
+                  "Salmiya; 6 Feb 2023 – 24 Mar 2024, unphysical gauge spikes "
+                  "removed (1.6% of readings). The tide here is near exact: "
+                  "correlation 0.98.")
+    notes(s, ports.TIDE_NOTES["Majis"] + "Majis: 8 482 hourly pairs after the spike QC (155 readings, "
              "1.6%, flagged by an iterated 5-h running-median test at "
              "0.10 m). CROCO r 0.65, RMSE 5.3 cm. Residual std: gauge 6.0 cm, "
              "CROCO 6.4 cm; at Salmiya the gauge std is 18.4 cm. The surge is "
@@ -290,7 +291,7 @@ def retext_kept(k):
     # 6. circulation: the map carries the two tide gauges of section 02
     gauge_sites(k[6])
 
-    # 8, 10, 11. turbidity: same slides, the consultancy's reasons in notes
+    # 8, 10. turbidity: same slides, the consultancy's reasons in notes
     notes(k[8], "For a consultancy the turbidity story is dredging and "
                 "reclamation compliance and EIA baselines as much as intakes: "
                 "what background turbidity looks like through a shamal "
@@ -406,7 +407,9 @@ def retext_kept(k):
 
 
 # ------------------------------------------------------------------ build
-KEEP = [1, 2, 3, 4, 5, 6, 7, 8, 10, 11, 13, 14, 17, 18]
+# 11, the storm-cascade GIF, is left out: 8 MB for one slide, and the chain
+# slides before it already walk the storm through.
+KEEP = [1, 2, 3, 4, 5, 6, 7, 8, 10, 13, 14, 17, 18]
 
 
 def build(out="oma-pitch-adec.pptx"):
@@ -427,7 +430,7 @@ def build(out="oma-pitch-adec.pptx"):
     partner = partner_slide(prs)
 
     reorder(prs, [k[1], since, k[2],
-                  k[3], k[4], k[5], k[6], k[7], k[8], k[10], k[11],  # 01
+                  k[3], k[4], k[5], k[6], k[7], k[8], k[10],         # 01
                   d02, sal, maj, ad,                                     # 02
                   d03, k[14], k[17],                                  # 03
                   d04, k[13], partner,                                # 04

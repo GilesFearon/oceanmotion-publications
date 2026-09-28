@@ -49,6 +49,8 @@ import os
 
 import numpy as np
 
+import ts_style as ts   # the time-series style shared with make_water_levels
+
 # ------------------------------------------------------------------ paths
 HERE = os.path.dirname(os.path.abspath(__file__))
 ASSET_DIR = os.path.join(HERE, "assets")
@@ -1369,6 +1371,7 @@ def slide_5a_sst(d):
     to the circulation slide because SST is what the circulation is carrying."""
     import matplotlib.pyplot as plt
     import matplotlib.dates as mdates
+    from matplotlib.ticker import MultipleLocator
     import pandas as pd
 
     mt = pd.to_datetime(np.asarray(d["sst_t"], "f8"), unit="s")
@@ -1377,38 +1380,26 @@ def slide_5a_sst(d):
     sat = pd.Series(np.asarray(d["sat_sst"], "f8"), index=st).dropna()
     both = pd.concat([mod.rename("m"), sat.rename("s")], axis=1).dropna()
 
-    fig = plt.figure(figsize=(11.0, 2.5), facecolor="none")
+    # 11 x 2.2 in, 5:1 -- the frame the hand-edited base deck gives it, so
+    # the figure fills that frame uncropped (the old crop cut the legend off)
+    fig = plt.figure(figsize=(11.0, 2.2), facecolor="none")
     # narrowed to leave a clear right margin for the statistics, which have no
     # quiet corner inside a decade of seasonal cycles
-    ax = fig.add_axes([0.052, 0.190, 0.800, 0.750])
-    ax.set_facecolor(PAPER)
-    # satellite as a broad pale line under a thin model line: where the two
-    # agree the model hides it, and every disagreement shows as grey.
-    ax.plot(sat.index, sat.values, color=INK_3, lw=2.4, alpha=0.55,
+    ax = fig.add_axes([0.055, 0.135, 0.815, 0.735])
+    ax.plot(sat.index, sat.values, color=ts.OBS, lw=ts.LW,
             label="satellite  (OSTIA L4)")
-    ax.plot(mod.index, mod.values, color="#1f7f92", lw=0.9,
-            label="model  (CROCO)")
-    ax.set_ylabel("sea surface temperature  (°C)", fontsize=8.5, color=INK_2,
-                  fontfamily=F_BODY)
+    ax.plot(mod.index, mod.values, color=ts.CROCO, lw=ts.LW, alpha=0.9,
+            label="CROCO")
     ax.set_xlim(both.index[0], both.index[-1])
+    ax.set_ylim(15, 37.5)
     ax.xaxis.set_major_locator(mdates.YearLocator())
     ax.xaxis.set_major_formatter(mdates.DateFormatter("%Y"))
-    for sp in ("top", "right"):
-        ax.spines[sp].set_visible(False)
-    for sp in ("left", "bottom"):
-        ax.spines[sp].set_color(RULE); ax.spines[sp].set_linewidth(0.8)
-    ax.tick_params(labelsize=8, colors=INK_3, length=2.5, width=0.7)
-    for lb in list(ax.get_xticklabels()) + list(ax.get_yticklabels()):
-        lb.set_fontfamily(F_MONO); lb.set_color(INK_2)
-    # above the axes rather than inside: a decade of seasonal cycles fills the
-    # frame edge to edge and any in-axes legend lands on the data
-    leg = ax.legend(loc="lower left", bbox_to_anchor=(0.0, 1.005), frameon=False,
-                    fontsize=8, ncol=2, handlelength=1.6, columnspacing=1.4)
-    for t in leg.get_texts():
-        t.set_color(INK_2); t.set_fontfamily(F_MONO)
-    _stat_block(ax, _stats(both.m, both.s), "°C", loc=(1.022, 0.90),
+    ax.yaxis.set_major_locator(MultipleLocator(5))
+    ts.style_axes(ax, "SST  (°C)")
+    ts.legend_above(ax, ncol=2)
+    _stat_block(ax, _stats(both.m, both.s), "°C", loc=(1.015, 0.98),
                 ha="left", va="top")
-    return save(fig, "5a-sst")
+    return save(fig, "5a-sst", dpi=ts.DPI)
 
 
 def slide_6a_hs(d):
@@ -1584,6 +1575,7 @@ def slide_7a_calib(d):
     there were some and the model was held to them."""
     import matplotlib.pyplot as plt
     import matplotlib.dates as mdates
+    from matplotlib.ticker import MultipleLocator
     import pandas as pd
 
     ens = np.asarray(d["cal_ens"], "f8")
@@ -1593,38 +1585,29 @@ def slide_7a_calib(d):
 
     fig = plt.figure(figsize=(11.0, 2.05), facecolor="none")
     ax = fig.add_axes([0.055, 0.235, 0.930, 0.640])
-    ax.set_facecolor(PAPER)
-    ax.fill_between(t, ens.min(axis=0), ens.max(axis=0), color=CYAN,
-                    alpha=0.22, lw=0, label="ensemble range  (L–H)")
+    # the turbidity model runs on CROCO and WW3 output: model blue, its
+    # ensemble spread in the paler blue; the in-situ logger in black
+    ax.fill_between(t, ens.min(axis=0), ens.max(axis=0), color=ts.CROCO_BAND,
+                    alpha=0.35, lw=0, label="ensemble range  (L–H)")
     ax.fill_between(t, np.percentile(ens, 25, axis=0),
-                    np.percentile(ens, 75, axis=0), color=CYAN, alpha=0.40,
-                    lw=0, label="ML–MH")
-    ax.plot(t, ens[2], color="#1f7f92", lw=1.4, label="median  (M)")
+                    np.percentile(ens, 75, axis=0), color=ts.CROCO_BAND,
+                    alpha=0.75, lw=0, label="ML–MH")
+    ax.plot(t, ens[2], color=ts.CROCO, lw=1.2, label="median  (M)")
     ax.plot(ot, d["cal_obs"], ls="none", marker="o", ms=3.4, mfc="none",
-            mec=INK, mew=0.9, label="observed")
+            mec=ts.OBS, mew=0.9, label="observed")
 
     ax.set_xlim(t[0], t[-1])
     ax.set_ylim(0, 48)
-    ax.set_ylabel("surface turbidity  (NTU)", fontsize=8.5, color=INK_2,
-                  fontfamily=F_BODY)
     ax.xaxis.set_major_locator(mdates.DayLocator(interval=7))
     ax.xaxis.set_major_formatter(mdates.DateFormatter("%-d %b"))
-    for sp in ("top", "right"):
-        ax.spines[sp].set_visible(False)
-    for sp in ("left", "bottom"):
-        ax.spines[sp].set_color(RULE); ax.spines[sp].set_linewidth(0.8)
-    ax.tick_params(labelsize=8, colors=INK_3, length=2.5, width=0.7)
-    for lb in list(ax.get_xticklabels()) + list(ax.get_yticklabels()):
-        lb.set_fontfamily(F_MONO); lb.set_color(INK_2)
-    leg = ax.legend(loc="lower left", bbox_to_anchor=(0.0, 1.005), frameon=False,
-                    fontsize=8, ncol=4, handlelength=1.6, columnspacing=1.4)
-    for txt in leg.get_texts():
-        txt.set_color(INK_2); txt.set_fontfamily(F_MONO)
+    ax.yaxis.set_major_locator(MultipleLocator(10))
+    ts.style_axes(ax, "surface turbidity  (NTU)")
+    ts.legend_above(ax, ncol=4)
     # one line, marking the hour the satellite scene above was taken
     ax.axvline(stamp, color=ACCENT, lw=1.6, zorder=6)
     ax.text(stamp, 47.0, "  satellite scene above", color=ACCENT, fontsize=8.5,
             fontfamily=F_MONO, ha="left", va="top")
-    return save(fig, "7a-calibration")
+    return save(fig, "7a-calibration", dpi=ts.DPI)
 
 
 # Panel geometry for slide 4, shared with the deck through the anchors file.

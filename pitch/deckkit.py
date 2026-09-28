@@ -315,11 +315,16 @@ def recolour_fills(prs, mapping=CREAM_TO_WHITE):
     return n
 
 
-def swap_picture(s, sid, path, tol=0.01):
+def swap_picture(s, sid, path, tol=0.01, refit=False):
     """Replace the image behind picture `sid` with the file at `path`, keeping
     its position, size and crop. Fails loudly if the shape is missing or the
     new image's aspect ratio differs from the one it replaces -- the frame
-    would stretch it."""
+    would stretch it.
+
+    refit=True is for a figure redrawn to a new shape: the crop is cleared
+    and the frame keeps its left, top and width, taking its height from the
+    new image. (The SST panel was hand-cropped in PowerPoint, and the crop
+    cut off the legend of every render swapped into it.)"""
     import io
     from PIL import Image
     pic = next((sh for sh in s.shapes if sh.shape_id == sid), None)
@@ -332,7 +337,11 @@ def swap_picture(s, sid, path, tol=0.01):
         blob = fh.read()
     new = Image.open(io.BytesIO(blob)).size
     a0, a1 = old[0] / old[1], new[0] / new[1]
-    if abs(a1 - a0) / a0 > tol:
+    if refit:
+        for side in ("left", "right", "top", "bottom"):
+            setattr(pic, f"crop_{side}", 0.0)
+        pic.height = _emu(pic.width / a1)
+    elif abs(a1 - a0) / a0 > tol:
         raise SystemExit(f"{os.path.basename(path)} is {new}, aspect {a1:.3f}; "
                          f"picture {sid} holds {old}, aspect {a0:.3f}")
     if os.path.splitext(path)[1].lower() != os.path.splitext(

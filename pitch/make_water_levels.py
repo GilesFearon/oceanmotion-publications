@@ -5,14 +5,14 @@ Ocean Motion Analytics — water level figures for the ports deck.
 All drawn from work that already exists in the model repo and rebuilt here so
 it carries the deck's typography:
 
-  tide       the predicted tide, CROCO against the gauge, at Salmiya and Majis:
-             August 2023 shown, statistics over each gauge's whole record.
-             Context rather than the pitch -- operationally the local forecast
-             takes its tide from the gauge's own harmonics, and the residual is
-             what the model brings.
-  residual   the non-tidal residual at the same two gauges, gauge against CROCO
-             and MERCATOR, whole record plus a two-month zoom. Same inputs as
-             postprocess_water_levels/plot_residuals_MERCATOR_pres.py.
+  gauge      one figure per gauge (Salmiya, Majis), three panels: the predicted
+             tide, CROCO against the gauge (August 2023 shown); the non-tidal
+             residual over the whole record; a zoom on the residual (Nov-Dec
+             2023). Gauge against CROCO and MERCATOR, or CROCO alone (-croco,
+             the ADEC deck). Statistics over each gauge's whole record. The
+             tide is context rather than the pitch -- operationally the local
+             forecast takes its tide from the gauge's own harmonics, and the
+             residual is what the model brings.
   abudhabi   nine years of modelled residual at Khalifa Port, where there is no
              gauge to hold it to, extracted with tidal_analysis.py's recipe.
   tidetable  a week of spring lows at Khalifa Port with a persistent set-down on
@@ -28,8 +28,10 @@ what the deck may claim, as --all prints them, over each gauge's whole record
 
               predicted tide       residual r (RMSE)
               r      RMSE          CROCO        MERCATOR     mean of the two
-  Salmiya     0.87   38 cm         0.88 (9 cm)  0.93 (7)     0.94 (6.5)
-  Majis       0.98   14 cm         0.60 (6 cm)  0.77 (4)     0.74 (5)
+  Salmiya     0.87   38 cm         0.88 (8.7)   0.93 (6.9)   0.94 (6.4)
+  Majis       0.98   14 cm         0.65 (5.3)   0.85 (3.1)   0.81 (3.6)
+
+(Majis after the gauge spike QC; RMSE in cm.) Styling is ts_style's.
 
 MERCATOR includes the inverse barometer (it is not forced by air pressure);
 without it Salmiya drops to 0.77, missing most of the annual cycle.
@@ -126,22 +128,22 @@ UKC = dict(now="2023-12-13 00:00", view=("2023-12-12 12:00", "2023-12-19 00:00")
 
 # ------------------------------------------------------------------ tokens
 # Mirrored from deckkit; duplicated because deckkit needs python-pptx, which
-# this environment does not have.
+# this environment does not have. The time-series colours, rules and legends
+# are ts_style's, shared with make_model_chain.py so every series in the decks
+# looks the same: observations black, CROCO blue, MERCATOR red.
+import ts_style as ts
+
 NAVY    = "#091c33"
 CYAN    = "#4fc3d7"
-MODEL   = "#1f7f92"   # the model line on every validation panel in the deck
-MERC    = "#8c6bb1"   # MERCATOR: second model, never the accent
+MODEL   = ts.CROCO
+MERC    = ts.MERC
+OBSC    = ts.OBS
 ACCENT  = "#ff6a2b"
 PAPER   = "#ffffff"   # the light-slide ground (white since Sep 2026; was #f4efe3)
 INK     = "#0b1420"
 INK_2   = "#4a5665"
 INK_3   = "#8a94a2"
 RULE    = "#d5dbe2"
-# Rules have to survive the figure being shrunk to under half its pixel width
-# on a slide: a hairline in a pale grey drops out or survives depending on
-# where it lands on the pixel grid, so minors went missing at random.
-GRID    = "#dde2e8"
-GRID_LW = (1.0, 0.7)  # major, minor
 
 F_DISPLAY, F_BODY, F_MONO = "Instrument Serif", "IBM Plex Sans", "IBM Plex Mono"
 
@@ -285,58 +287,18 @@ def register_fonts():
                 pass
 
 
-def _axes(ax, ylabel=None, step=None, minor=None):
-    """Deck axes. With `step`, a labelled tick every `step` m and a horizontal
-    rule at every tick (and at every `minor`, fainter), so peaks and troughs
-    can be read straight off the slide."""
+def _axes(ax, ylabel=None, step=None):
+    """Deck axes (ts_style), with a y tick every `step` m and a solid rule at
+    zero, the level everything on these panels is read from."""
     from matplotlib.ticker import MultipleLocator
-    ax.set_facecolor(PAPER)
-    for sp in ("top", "right"):
-        ax.spines[sp].set_visible(False)
-    for sp in ("left", "bottom"):
-        ax.spines[sp].set_color(RULE); ax.spines[sp].set_linewidth(0.8)
-    ax.tick_params(labelsize=8, colors=INK_3, length=2.5, width=0.7)
-    for lb in list(ax.get_xticklabels()) + list(ax.get_yticklabels()):
-        lb.set_fontfamily(F_MONO); lb.set_color(INK_2)
     if step:
-        # rules drawn explicitly at every step, not as minor-tick gridlines:
-        # matplotlib drops a minor tick it judges to overlap a major one, and
-        # floating-point steps (0.7000000000000001) made it drop real ones
         ax.yaxis.set_major_locator(MultipleLocator(step))
-        lo, hi = ax.get_ylim()
-        fine = minor or step
-        for k in range(int(np.ceil(lo / fine - 1e-6)),
-                       int(np.floor(hi / fine + 1e-6)) + 1):
-            y = round(k * fine, 6)
-            major = abs(y / step - round(y / step)) < 1e-6
-            # clip_on=False: a rule on the axis limit (Khalifa's +0.6 m) is
-            # otherwise clipped to half its width and vanishes when shrunk
-            ax.axhline(y, color=GRID, lw=GRID_LW[0] if major else GRID_LW[1],
-                       zorder=0, clip_on=False)
-        ax.set_axisbelow(True)
+    ts.style_axes(ax, ylabel)
     ax.axhline(0, color=RULE, lw=0.9, zorder=1)
-    if ylabel:
-        ax.set_ylabel(ylabel, fontsize=8.5, color=INK_2, fontfamily=F_BODY)
 
 
-def _fonts(ax):
-    """Re-apply tick fonts after the locators have made new labels."""
-    for lb in list(ax.get_xticklabels()) + list(ax.get_yticklabels()):
-        lb.set_fontfamily(F_MONO); lb.set_color(INK_2)
-
-
-def _legend(ax, ncol=2, **kw):
-    leg = ax.legend(loc="lower left", bbox_to_anchor=(0.0, 1.005),
-                    frameon=False, fontsize=8, ncol=ncol, handlelength=1.6,
-                    columnspacing=1.4, **kw)
-    for t in leg.get_texts():
-        t.set_color(INK_2); t.set_fontfamily(F_MONO)
-
-
-def _side(ax, text, y=0.98, size=8.5, color=INK_2):
-    ax.text(1.015, y, text, transform=ax.transAxes, fontsize=size,
-            color=color, fontfamily=F_MONO, ha="left", va="top",
-            linespacing=1.55)
+_fonts = ts.fonts
+_side = ts.side
 
 
 def _ylim(*series, step=0.25, pad=0.05):
@@ -346,7 +308,18 @@ def _ylim(*series, step=0.25, pad=0.05):
     return np.floor(lo / step) * step, np.ceil(hi / step) * step
 
 
-def save(fig, name, dpi=200):
+def _step(lo, hi, n=4):
+    """A round tick step giving about n intervals over lo..hi -- these panels
+    are under an inch tall, and more rules than that is a grille."""
+    raw = (hi - lo) / n
+    mag = 10 ** np.floor(np.log10(raw))
+    for m in (1, 2, 2.5, 5, 10):
+        if m * mag >= raw * 0.999:
+            return m * mag
+    return 10 * mag
+
+
+def save(fig, name, dpi=ts.DPI):
     os.makedirs(ASSET_DIR, exist_ok=True)
     out = os.path.join(ASSET_DIR, f"wl-{name}.png")
     fig.savefig(out, dpi=dpi, transparent=True, facecolor="none")
@@ -355,100 +328,93 @@ def save(fig, name, dpi=200):
 
 
 # ------------------------------------------------------------------ figures
-def fig_tide(g, name):
-    """A month of predicted tide, gauge under model, statistics over the whole
-    gauge record. The pale-under-thin convention is the SST panel's: where the
-    two agree the model line hides the gauge."""
+def fig_gauge(g, name, merc=True):
+    """Everything the deck shows at one gauge, in one figure: the predicted
+    tide (a month), the non-tidal residual (the whole record) and a zoom on
+    the residual (Nov-Dec 2023). merc=False draws the gauge against CROCO
+    alone -- the ADEC deck, where the design argument is the model's own
+    record -- and saves as gauge-<name>-croco.
+
+    Statistics are over each gauge's whole record: the tide's over every hour,
+    the residual's over the hours all three series exist. Both models are
+    drawn on the ports deck because neither wins every event and their mean
+    beats either, which is the argument for the operational ensemble."""
     import matplotlib.pyplot as plt
     import matplotlib.dates as mdates
     import pandas as pd
-
-    t = pd.to_datetime(g["t"])
-    w = (t >= TIDE_MONTH[0]) & (t < TIDE_MONTH[1])
-    fig = plt.figure(figsize=(11.0, 2.05), facecolor="none")
-    ax = fig.add_axes([0.058, 0.13, 0.815, 0.72])
-    ax.plot(t[w], g["tide_obs"][w], color=INK_3, lw=2.4, alpha=0.55,
-            label="gauge predicted tide")
-    ax.plot(t[w], g["tide_mod"][w], color=MODEL, lw=0.9,
-            label="model predicted tide  (CROCO)")
-    ax.set_xlim(pd.Timestamp(TIDE_MONTH[0]),
-                pd.Timestamp(TIDE_MONTH[1]) - pd.Timedelta(hours=1))
-    ax.set_ylim(*_ylim(g["tide_obs"][w], g["tide_mod"][w], step=0.5))
-    ax.xaxis.set_major_locator(mdates.DayLocator(bymonthday=range(1, 32, 3)))
-    ax.xaxis.set_major_formatter(mdates.DateFormatter("%-d %b"))
-    _axes(ax, "predicted tide  (m)", step=0.5, minor=0.25)
-    _fonts(ax)
-    _legend(ax)
-    st = _stats(g["tide_mod"], g["tide_obs"])
-    _side(ax, f"r     {st['r']:.2f}\nRMSE  {st['rmse'] * 100:.0f} cm")
-    _side(ax, "whole gauge\nrecord", y=0.42, size=7.5, color=INK_3)
-    print(f"    {name} tide stats: r {st['r']:.3f} RMSE {st['rmse']:.3f} m")
-    return save(fig, f"tide-{name.lower()}")
-
-
-def fig_residual(g, name, merc=True):
-    """The residual at one gauge: the whole record above, Nov-Dec 2023 below,
-    gauge against CROCO and MERCATOR. merc=False draws the gauge against CROCO
-    alone (the ADEC deck, where the design argument is the model's own record)
-    and saves it as residual-<name>-croco.
-
-    Both models are drawn because neither wins every event -- some set-downs
-    are CROCO's, some MERCATOR's -- and their mean beats either, which is the
-    argument for running an ensemble operationally. Statistics are over the
-    hours all three exist, which is now each gauge's whole record."""
-    import matplotlib.pyplot as plt
-    import matplotlib.dates as mdates
-    import pandas as pd
+    from matplotlib.patches import Rectangle
+    from matplotlib.dates import date2num
 
     t = pd.to_datetime(g["t"])
     st, common = residual_stats(g)
-    fig = plt.figure(figsize=(11.0, 3.35), facecolor="none")
-    a1 = fig.add_axes([0.058, 0.575, 0.775, 0.355])
-    a2 = fig.add_axes([0.058, 0.09, 0.775, 0.395])
-    # each gauge on the scale of its own data (spike QC applied)
-    ylim = _ylim(g["res_obs"], g["res_mod"], g["res_merc"], step=0.1, pad=0.02)
-    lines = (("res_obs", INK, 1.0, 1.0, "tide gauge"),
-             ("res_mod", MODEL, 1.0, 0.9, "CROCO"),
-             ("res_merc", MERC, 1.0, 0.85, "MERCATOR + air pressure"))
-    if not merc:
-        lines = lines[:2]
+    tst = _stats(g["tide_mod"], g["tide_obs"])
 
-    for ax, lo, hi, loc, fmt in (
-            (a1, t[0], t[-1], mdates.MonthLocator(), "%b %Y"),
-            (a2, pd.Timestamp(ZOOM[0]), pd.Timestamp(ZOOM[1]),
-             mdates.WeekdayLocator(byweekday=mdates.MO), "%-d %b")):
-        for key, c, lw, alpha, lab in lines:
-            ax.plot(t, g[key], color=c, lw=lw * (0.6 if ax is a1 else 1.0),
-                    alpha=alpha, label=lab)
+    fig = plt.figure(figsize=(11.0, 4.1), facecolor="none")
+    L, W = 0.058, 0.782
+    a0 = fig.add_axes([L, 0.715, W, 0.225])   # predicted tide
+    a1 = fig.add_axes([L, 0.395, W, 0.225])   # residual, whole record
+    a2 = fig.add_axes([L, 0.065, W, 0.235])   # residual, zoom
+    # a locator drives one axis only -- each panel needs its own
+    weekly = lambda: mdates.WeekdayLocator(byweekday=mdates.MO)
+
+    # ---- tide
+    w = (t >= TIDE_MONTH[0]) & (t < TIDE_MONTH[1])
+    a0.plot(t[w], g["tide_obs"][w], color=OBSC, lw=ts.LW)
+    a0.plot(t[w], g["tide_mod"][w], color=MODEL, lw=ts.LW, alpha=0.9)
+    a0.set_xlim(pd.Timestamp(TIDE_MONTH[0]),
+                pd.Timestamp(TIDE_MONTH[1]) - pd.Timedelta(hours=1))
+    a0.set_ylim(*_ylim(g["tide_obs"][w], g["tide_mod"][w], step=0.5))
+    a0.xaxis.set_major_locator(weekly())
+    a0.xaxis.set_major_formatter(mdates.DateFormatter("%-d %b"))
+    _axes(a0, "tide  (m)", step=_step(*a0.get_ylim()))
+    ts.panel_title(a0, "PREDICTED TIDE  ·  "
+                   f"{pd.Timestamp(TIDE_MONTH[0]):%B %Y}".upper())
+    _side(a0, "          r     RMSE\n"
+              f"CROCO     {tst['r']:.2f}  {tst['rmse'] * 100:.0f} cm")
+
+    # ---- residual, whole record and zoom
+    lines = [("res_obs", OBSC, 1.0, "tide gauge"),
+             ("res_mod", MODEL, 0.9, "CROCO")]
+    if merc:
+        lines.append(("res_merc", MERC, 0.85, "MERCATOR + air pressure"))
+    ylim = _ylim(*(g[k] for k, *_ in lines), step=0.1, pad=0.02)
+    step = _step(*ylim)
+    months = round((t[-1] - t[0]).days / 30.44)
+    for ax, lo, hi, loc, fmt, lw in (
+            (a1, t[0], t[-1], mdates.MonthLocator(interval=1 if months <= 10
+                                                  else 2), "%b %Y", 0.6),
+            (a2, pd.Timestamp(ZOOM[0]), pd.Timestamp(ZOOM[1]), weekly(),
+             "%-d %b", ts.LW)):
+        for key, c, alpha, lab in lines:
+            ax.plot(t, g[key], color=c, lw=lw, alpha=alpha, label=lab)
         ax.set_xlim(lo, hi)
         ax.set_ylim(*ylim)
         ax.xaxis.set_major_locator(loc)
         ax.xaxis.set_major_formatter(mdates.DateFormatter(fmt))
-        _axes(ax, "residual  (m)", step=0.2, minor=0.1)
-        _fonts(ax)
-    # the zoom window as an outline, as the original figure drew it
-    from matplotlib.patches import Rectangle
-    from matplotlib.dates import date2num
+        _axes(ax, "residual  (m)", step=step)
     x0, x1 = date2num(pd.Timestamp(ZOOM[0])), date2num(pd.Timestamp(ZOOM[1]))
-    a1.add_patch(Rectangle((x0, ylim[0]), x1 - x0,
-                           ylim[1] - ylim[0], fill=False,
-                           edgecolor=ACCENT, lw=1.4, zorder=6, clip_on=False))
-    _legend(a1, ncol=len(lines))
+    a1.add_patch(Rectangle((x0, ylim[0]), x1 - x0, ylim[1] - ylim[0],
+                           fill=False, edgecolor=ACCENT, lw=1.4, zorder=6,
+                           clip_on=False))
+    ts.panel_title(a1, "NON-TIDAL RESIDUAL  ·  WHOLE RECORD")
+    ts.panel_title(a2, "RESIDUAL  ·  "
+                   f"{pd.Timestamp(ZOOM[0]):%b} – "
+                   f"{pd.Timestamp(ZOOM[1]) - pd.Timedelta(days=1):%b %Y}"
+                   .upper())
+    rows = [("CROCO", st["mod"])] + ([("MERCATOR", st["merc"]),
+                                      ("mean", st["mean"])] if merc else [])
+    _side(a1, "          r     RMSE\n" + "\n".join(
+        f"{k:<9} {v['r']:.2f}  {v['rmse'] * 100:.1f} cm" for k, v in rows))
 
-    if merc:
-        _side(a1, "          r     RMSE\n"
-                  f"CROCO     {st['mod']['r']:.2f}  {st['mod']['rmse'] * 100:.0f} cm\n"
-                  f"MERCATOR  {st['merc']['r']:.2f}  {st['merc']['rmse'] * 100:.0f} cm\n"
-                  f"mean      {st['mean']['r']:.2f}  {st['mean']['rmse'] * 100:.0f} cm",
-              size=8)
-    else:
-        _side(a1, "          r     RMSE\n"
-                  f"CROCO     {st['mod']['r']:.2f}  {st['mod']['rmse'] * 100:.1f} cm",
-              size=8)
+    # one legend for the figure, above the top panel
+    h, lab = a1.get_legend_handles_labels()
+    ts.legend_above(a0, ncol=len(h), handles=h, labels=lab)
+
+    print(f"    {name} tide stats: r {tst['r']:.3f} RMSE {tst['rmse']:.3f} m")
     for k, v in st.items():
         print(f"    {name} residual {k:5s} r {v['r']:.3f} RMSE "
               f"{v['rmse']:.3f} m n {v['n']}")
-    return save(fig, f"residual-{name.lower()}" + ("" if merc else "-croco"))
+    return save(fig, f"gauge-{name.lower()}" + ("" if merc else "-croco"))
 
 
 def fig_abudhabi(d):
@@ -475,27 +441,26 @@ def fig_abudhabi(d):
     a1 = fig.add_axes([0.058, 0.575, 0.815, 0.37])
     a2 = fig.add_axes([0.058, 0.085, 0.815, 0.37])
 
-    a1.plot(kh.index, kh.values, color=INK, lw=0.3)
+    # model only, so model blue (ts_style); there is no gauge to draw in black
+    a1.plot(kh.index, kh.values, color=MODEL, lw=0.35)
     a1.axvspan(w0, w1, color=ACCENT, alpha=0.25, lw=0)
     a1.set_xlim(kh.index[0], kh.index[-1])
     a1.set_ylim(-0.4, 0.6)
     a1.xaxis.set_major_locator(mdates.YearLocator())
     a1.xaxis.set_major_formatter(mdates.DateFormatter("%Y"))
     _axes(a1, "residual  (m)", step=0.2)
-    _fonts(a1)
     lo, hi = kh.quantile(0.001), kh.quantile(0.999)
     _side(a1, f"Khalifa Port\n2016 – 2024\n\n"
               f"min   {kh.min():+.2f} m\nmax   {kh.max():+.2f} m\n"
               f"0.1%  {lo:+.2f} m\n99.9% {hi:+.2f} m", size=8)
 
     s = slice(w0, w1)
-    a2.plot(kh[s].index, kh[s].values, color=INK, lw=1.2)
+    a2.plot(kh[s].index, kh[s].values, color=MODEL, lw=1.2)
     a2.set_xlim(w0, w1)
     a2.set_ylim(-0.4, 0.4)
     a2.xaxis.set_major_locator(mdates.DayLocator(interval=4))
     a2.xaxis.set_major_formatter(mdates.DateFormatter("%-d %b %Y"))
     _axes(a2, "residual  (m)", step=0.2)
-    _fonts(a2)
     _side(a2, f"largest set-down\n{i_min:%-d %b %Y %H:%M}\n\n"
               f"{kh[i_min]:+.2f} m", size=8)
     print(f"    Abu Dhabi: min {kh.min():+.3f} at {i_min}, "
@@ -537,7 +502,7 @@ def fig_tidetable(d):
                     label="below the predicted tide")
     ax.plot(tide.index, tide.values, color=INK_3, lw=1.3, ls=(0, (4, 2)),
             label="predicted tide")
-    ax.plot(z.index, z.values, color=NAVY, lw=1.5,
+    ax.plot(z.index, z.values, color=MODEL, lw=1.5,
             label="modelled water level")
     ax.set_xlim(z.index[0], z.index[-1])
     lo, hi = _ylim(z, tide, step=0.25)
@@ -545,14 +510,13 @@ def fig_tidetable(d):
     ax.xaxis.set_major_locator(mdates.DayLocator())
     ax.xaxis.set_major_formatter(mdates.DateFormatter("%-d %b"))
     _axes(ax, "water level about MSL  (m)", step=0.25)
-    _fonts(ax)
-    _legend(ax, ncol=2)
+    ts.legend_above(ax, ncol=2)
     lw = z.idxmin()
     ax.annotate(f"{z[lw]:+.2f} m  ·  predicted {tide[lw]:+.2f} m",
                 xy=(lw, z[lw]), xytext=(lw + (z.index[1] - z.index[0]) * 10,
                                         lo - 0.13),
-                fontsize=8, color=NAVY, fontfamily=F_MONO, va="center",
-                arrowprops=dict(arrowstyle="-", color=NAVY, lw=0.8,
+                fontsize=8, color=MODEL, fontfamily=F_MONO, va="center",
+                arrowprops=dict(arrowstyle="-", color=MODEL, lw=0.8,
                                 shrinkA=2, shrinkB=3))
     days = z.resample("1D").min()
     print(f"    low week: lowest {z.min():+.2f} m at {lw} (table "
@@ -665,7 +629,6 @@ def fig_ukc_dashboard(g):
         json.dump(verdict, fh, indent=1)
     print(f"    dashboard: {json.dumps(verdict)}")
 
-    GRIDC = "#e1e5ea"
     RED, GREEN = "#d6453d", "#3f9b62"
     fig = plt.figure(figsize=(7.0, 5.0), facecolor=PAPER)
     boxes = [(0.60, 0.33), (0.43, 0.12), (0.30, 0.08), (0.06, 0.19)]
@@ -676,7 +639,7 @@ def fig_ukc_dashboard(g):
         ax.set_facecolor(PAPER)
         for sp in ax.spines.values():
             sp.set_visible(False)
-        ax.grid(True, color=GRIDC, lw=0.6)
+        ax.grid(True, color=ts.GRID, lw=ts.GRID_LW, ls=ts.GRID_LS)
         ax.set_axisbelow(True)
         ax.tick_params(labelsize=6.5, colors=INK_2, length=0)
         ax.set_ylabel("m", fontsize=6.5, color=INK_2, fontfamily=F_MONO)
@@ -692,19 +655,19 @@ def fig_ukc_dashboard(g):
 
     a_wl.text(now, 0.97, " NOW", transform=a_wl.get_xaxis_transform(),
               fontsize=6.5, color=INK, fontfamily=F_MONO, va="top")
-    a_wl.fill_between(t, wl_lo, wl_hi, color=CYAN, alpha=0.25, lw=0)
+    a_wl.fill_between(t, wl_lo, wl_hi, color=ts.CROCO_BAND, alpha=0.45, lw=0)
     a_wl.plot(t, tide, color=INK_3, lw=0.9, ls=(0, (3, 2)))
-    a_wl.plot(t, wl, color=MODEL, lw=1.2)
+    a_wl.plot(t, wl, color=INK_2, lw=1.2)
     past = t <= now
-    a_wl.plot(t[past], obs[past], color=INK, lw=1.0)
+    a_wl.plot(t[past], obs[past], color=OBSC, lw=1.0)
     a_wl.text(1.0, 1.03, "PREDICTED TIDE - -   FORECAST + 95% BAND   "
               "OBSERVED", transform=a_wl.transAxes, fontsize=6, color=INK_3,
               fontfamily=F_MONO, ha="right", va="bottom")
 
-    a_s.fill_between(t, res_lo, res_hi, color=CYAN, alpha=0.25, lw=0)
+    a_s.fill_between(t, res_lo, res_hi, color=ts.CROCO_BAND, alpha=0.45, lw=0)
     a_s.plot(t, r_mod, color=MODEL, lw=0.9)
     a_s.plot(t, r_merc, color=MERC, lw=0.9)
-    a_s.plot(t, mean, color=INK, lw=1.3)
+    a_s.plot(t, mean, color=INK_2, lw=1.3)
     a_s.text(1.0, 1.03, "CROCO   MERCATOR + AIR PRESSURE   MEAN + 95% BAND",
              transform=a_s.transAxes, fontsize=6, color=INK_3,
              fontfamily=F_MONO, ha="right", va="bottom")
@@ -744,7 +707,7 @@ def fig_ukc_dashboard(g):
             lb.set_fontsize(6.5)
     os.makedirs(ASSET_DIR, exist_ok=True)
     out = os.path.join(ASSET_DIR, "wl-dashboard.png")
-    fig.savefig(out, dpi=220, facecolor=PAPER)
+    fig.savefig(out, dpi=ts.DPI, facecolor=PAPER)
     print(f"wrote {out}")
     return verdict
 
@@ -772,7 +735,7 @@ if __name__ == "__main__":
                     help="extract the Abu Dhabi residual from the hindcast")
     ap.add_argument("--all", action="store_true", help="render every figure")
     ap.add_argument("--croco-only", action="store_true",
-                    help="render only the CROCO-only residuals (ADEC deck)")
+                    help="render only the CROCO-only gauge figures (ADEC deck)")
     args = ap.parse_args()
 
     if args.extract:
@@ -785,9 +748,8 @@ if __name__ == "__main__":
         gs = {n: gauge(n) for n in ("Salmiya", "Majis")}
         summary(gs)
         for n, g in gs.items():
-            fig_tide(g, n)
-            fig_residual(g, n)
-            fig_residual(g, n, merc=False)
+            fig_gauge(g, n)
+            fig_gauge(g, n, merc=False)
         if os.path.exists(CACHE):
             d = xr.open_dataset(CACHE)
             fig_abudhabi(d)
@@ -800,4 +762,4 @@ if __name__ == "__main__":
         matplotlib.use("Agg")
         register_fonts()
         for n in ("Salmiya", "Majis"):
-            fig_residual(gauge(n), n, merc=False)
+            fig_gauge(gauge(n), n, merc=False)
