@@ -14,7 +14,8 @@ it carries the deck's typography:
              forecast takes its tide from the gauge's own harmonics, and the
              residual is what the model brings.
   abudhabi   nine years of modelled residual at Khalifa Port, where there is no
-             gauge to hold it to, extracted with tidal_analysis.py's recipe.
+             gauge to hold it to, extracted with the shared constituent rule
+             (tide_fit.py), so the seasonal cycle is in the residual.
   tidetable  a week of spring lows at Khalifa Port with a persistent set-down on
              top: total water level against the tide table.
   dashboard  the same week as a stand-in for the client view, with the limit on
@@ -28,28 +29,29 @@ what the deck may claim, as --all prints them, over each gauge's whole record
 
               predicted tide       residual r (RMSE)
               r      RMSE          CROCO        MERCATOR     mean of the two
-  Salmiya     0.87   38 cm         0.88 (8.7)   0.93 (6.9)   0.94 (6.4)
-  Majis       0.98   14 cm         0.65 (5.3)   0.85 (3.1)   0.81 (3.6)
+  Salmiya     0.87   38 cm         0.88 (8.8)   0.93 (6.8)   0.94 (6.4)
+  Majis       0.98   14 cm         0.81 (5.6)   0.89 (4.0)   0.89 (4.0)
 
 (Majis after the gauge spike QC; RMSE in cm.) Styling is ts_style's.
 
 MERCATOR includes the inverse barometer (it is not forced by air pressure);
-without it Salmiya drops to 0.77, missing most of the annual cycle.
+without it Salmiya drops to 0.74, missing most of the annual cycle.
 
-The annual constituent: Majis's 14-month record resolves SA, so the annual
-cycle is in the gauge tide and removed from both model residuals. Salmiya's 9
-months do not, so the annual cycle is in all three residuals, and the models
-have to carry it (the monthly-mean residual runs +23 cm in June to -18 cm in
-February). Method, in full: oceanmotion-models/ops/postprocess/
-water_level_method.md
+The annual cycle: no long-period constituent (SA, SSA, MSM, MM, MF) is fitted
+at either gauge (ops/postprocess/tide_fit.py). The seasonal cycle here is
+pressure, heating and Hormuz exchange rather than tide, and it changes from
+year to year, so it is in all three residuals and the models have to carry it
+(Salmiya's monthly-mean residual runs +23 cm in June to -18 cm in February).
+Method, in full: oceanmotion-models/ops/postprocess/water_level_method.md
 
 That is the slide 12 argument in one table: the surge is made inside the Gulf,
 so it is large and well captured at Salmiya and small and hard to pick out at
 Majis -- while the tide, which comes in through Hormuz, is reproduced almost
 exactly at Majis and accumulates phase error (1 - 1.5 h) by the head of the
 Gulf. At Majis the model lags the gauge by the same ~25 min on every
-constituent, which looks like a timestamp convention on the hourly averages
-rather than physics; unverified.
+constituent: CROCO stamps its hourly means at the end of the hour (the gauge
+at the centre), 28.5 min late; re-stamped, Majis is within 4 min and Salmiya
+lags by 33 min (M2) to 67 min (K1).
 
 Runs in the somisana_croco environment (needs utide, and crocotools_py for the
 extraction). The deck builder runs in base.
@@ -85,8 +87,8 @@ MERCATOR = os.path.join(MODELS, "datasets/MERCATOR/gulf_ssh")
 
 CACHE = os.path.join(ASSET_DIR, "wl-abudhabi.nc")
 
-# The same window tidal_analysis.py fits over: nine full years, long enough to
-# separate SA from SSA and K1 from P1 without inference.
+# Nine full years: long enough to separate K1 from P1 without inference. SA
+# and SSA are resolved too but never fitted (tide_fit.py).
 PERIOD = slice("2016-01-01", "2024-12-31")
 
 # Abu Dhabi. The parent grid is ~3 km, so this is the nearest wet cell to the
@@ -110,10 +112,9 @@ TIDE_MONTH = ("2023-08-01", "2023-09-01")
 ZOOM = ("2023-11-01", "2024-01-01")
 
 # The Khalifa Port week: the tides building to springs while a set-down of
-# -0.20 to -0.28 m holds from 31 Jan to 3 Feb 2019 (12 hours below -0.25 m).
-# No spring low water in 2016-2024 coincides exactly with a residual below
-# -0.25 m -- those set-downs are rare and short -- and this is the closest: at
-# low water on 2 Feb the sea stood at -1.03 m against a predicted -0.82 m.
+# -0.13 to -0.39 m holds from 31 Jan to 3 Feb 2019 (71 hours below -0.25 m),
+# about -0.20 m of it the winter low of the seasonal cycle (30-day mean). At
+# low water on 2 Feb the sea stood at -1.03 m against a predicted -0.71 m.
 # Daily low water crosses -1.0 m once; the predicted tide never does.
 LOW_WEEK = ("2019-01-29 12:00", "2019-02-05 12:00")
 LOW_LIMIT = -1.0                 # reference level for the printed summary
@@ -155,6 +156,9 @@ def extract():
     import xarray as xr
     import crocotools_py.postprocess as post
     from datetime import datetime
+    import sys
+    sys.path.insert(0, os.path.join(MODELS, "ops", "postprocess"))
+    import tide_fit     # the constituent rule shared with the gauge fits
 
     out = {}
     for name, p in PORTS.items():
@@ -164,8 +168,7 @@ def extract():
         zeta = ds.zeta.values
         time = ds.time.values
         tdt = time.astype("datetime64[s]").astype(datetime)
-        coef = utide.solve(tdt, zeta, lat=p["lat"], trend=False,
-                           verbose=False)
+        coef = tide_fit.solve(tdt, zeta, p["lat"])
         tide = utide.reconstruct(tdt, coef, verbose=False).h
         key = name.split()[0].lower()
         out[f"{key}_zeta"] = ("time", zeta)
@@ -177,8 +180,9 @@ def extract():
     os.makedirs(ASSET_DIR, exist_ok=True)
     xr.Dataset(out, coords={"time": time},
                attrs={"source": SURF, "period": "2016-2024",
-                      "method": "utide.solve(trend=False), residual = zeta - "
-                                "reconstruct; same as tidal_analysis.py",
+                      "method": "tide_fit.solve (utide, trend=False, no SA/SSA/"
+                                "MSM/MM/MF), residual = zeta - reconstruct; "
+                                "same as tidal_analysis.py",
                       "ports": str(PORTS)}).to_netcdf(CACHE)
     print(f"wrote {CACHE}")
 
@@ -420,22 +424,30 @@ def fig_gauge(g, name, merc=True):
 def fig_abudhabi(d):
     """Nine years of modelled residual at Khalifa Port, and one event.
 
-    Top: 2016-2024, hourly. Bottom: the largest set-down in the record, a
-    fortnight either side. CROCO only: a daily GLORYS series was tried beside
-    it and dropped, because daily means sit badly against an hourly surge.
+    Top: 2016-2024, hourly, with its 30-day running mean -- the seasonal
+    cycle, which is in the residual, not the tide (tide_fit.py: Khalifa's
+    monthly climatology runs -11 cm in February to +14 cm in July, and any one
+    month varies by 3-7 cm from year to year). Bottom: the largest set-down in
+    the record and the largest surge within three weeks of it (16 days later,
+    Feb-Mar 2019), four days either side. CROCO only: a daily GLORYS series
+    was tried beside it and dropped, because daily means sit badly against an
+    hourly surge.
 
-    The annual cycle is in the tide here, not the residual: Khalifa has no
-    gauge, so CROCO is fitted over 2016-2024 (as the operational system fits an
-    ungauged site) and that fit includes SA (10.9 cm) and SSA (3.4 cm). The
-    residual's monthly climatology is flat to within +-2 cm."""
+    Not the record maximum (+0.62 m, 18 Jun 2023, tied with 18 Jun 2019): the
+    model overshot that June 2023 event at both gauges (Salmiya +0.20 m, Majis
+    +0.12 m low-passed), so it is not the event to show."""
     import matplotlib.pyplot as plt
     import matplotlib.dates as mdates
     import pandas as pd
 
     t = pd.to_datetime(d.time.values)
     kh = pd.Series(d.khalifa_residual.values, index=t)
+    month = kh.rolling("30D", center=True).mean()
     i_min = kh.idxmin()
-    w0, w1 = i_min - pd.Timedelta(days=12), i_min + pd.Timedelta(days=12)
+    near = kh[i_min - pd.Timedelta(days=21):i_min + pd.Timedelta(days=21)]
+    i_max = near.idxmax()
+    w0 = min(i_min, i_max) - pd.Timedelta(days=4)
+    w1 = max(i_min, i_max) + pd.Timedelta(days=4)
 
     fig = plt.figure(figsize=(11.0, 4.6), facecolor="none")
     a1 = fig.add_axes([0.058, 0.575, 0.815, 0.37])
@@ -443,28 +455,36 @@ def fig_abudhabi(d):
 
     # model only, so model blue (ts_style); there is no gauge to draw in black
     a1.plot(kh.index, kh.values, color=MODEL, lw=0.35)
+    a1.plot(month.index, month.values, color=INK, lw=1.1)
     a1.axvspan(w0, w1, color=ACCENT, alpha=0.25, lw=0)
     a1.set_xlim(kh.index[0], kh.index[-1])
-    a1.set_ylim(-0.4, 0.6)
+    a1.set_ylim(-0.6, 0.7)
     a1.xaxis.set_major_locator(mdates.YearLocator())
     a1.xaxis.set_major_formatter(mdates.DateFormatter("%Y"))
     _axes(a1, "residual  (m)", step=0.2)
     lo, hi = kh.quantile(0.001), kh.quantile(0.999)
     _side(a1, f"Khalifa Port\n2016 – 2024\n\n"
               f"min   {kh.min():+.2f} m\nmax   {kh.max():+.2f} m\n"
-              f"0.1%  {lo:+.2f} m\n99.9% {hi:+.2f} m", size=8)
+              f"0.1%  {lo:+.2f} m\n99.9% {hi:+.2f} m\n\n"
+              f"black: 30-day mean", size=8)
 
     s = slice(w0, w1)
     a2.plot(kh[s].index, kh[s].values, color=MODEL, lw=1.2)
+    a2.plot(month[s].index, month[s].values, color=INK, lw=1.1)
     a2.set_xlim(w0, w1)
-    a2.set_ylim(-0.4, 0.4)
+    a2.set_ylim(-0.6, 0.7)
+    a2.plot([i_min, i_max], [kh[i_min], kh[i_max]], "o", ms=4, mfc="none",
+            mec=ACCENT, mew=1.0)
     a2.xaxis.set_major_locator(mdates.DayLocator(interval=4))
     a2.xaxis.set_major_formatter(mdates.DateFormatter("%-d %b %Y"))
     _axes(a2, "residual  (m)", step=0.2)
-    _side(a2, f"largest set-down\n{i_min:%-d %b %Y %H:%M}\n\n"
-              f"{kh[i_min]:+.2f} m", size=8)
+    _side(a2, f"largest set-down\n{i_min:%-d %b %Y %H:%M}\n"
+              f"{kh[i_min]:+.2f} m\n\n"
+              f"surge\n{(i_max - i_min) / pd.Timedelta(days=1):.0f} days later\n"
+              f"{i_max:%-d %b %Y %H:%M}\n{kh[i_max]:+.2f} m", size=8)
     print(f"    Abu Dhabi: min {kh.min():+.3f} at {i_min}, "
-          f"max {kh.max():+.3f} at {kh.idxmax()}")
+          f"max {kh.max():+.3f} at {kh.idxmax()}, "
+          f"window surge {kh[i_max]:+.3f} at {i_max}")
     return save(fig, "abudhabi")
 
 

@@ -96,7 +96,7 @@ def salmiya_slide(prs):
                    "Salmiya, Kuwait: the surge,\nevent by event.", size=30)
     for k, (big, lbl) in enumerate([
             ("0.88", "correlation\nhourly, 9 months"),
-            ("8.7 cm", "RMSE"),
+            ("8.8 cm", "RMSE"),
             ("±18 cm", "typical surge\nat the gauge")]):
         ports.stat(s, Inches(6.75) + k * Inches(2.0), Inches(0.95), big, lbl,
                    width=Inches(1.9), size=40)
@@ -107,9 +107,11 @@ def salmiya_slide(prs):
                   "model put through the same harmonic analysis over the "
                   "gauge record, 15 Jun 2023 – 26 Mar 2024")
     notes(s, ports.TIDE_NOTES["Salmiya"] + "Salmiya: 6 834 hourly pairs (6 gauge spikes removed). CROCO "
-             "r 0.88, RMSE 8.7 cm. Gauge residual -0.72 to +0.48 m, std "
+             "r 0.88, RMSE 8.8 cm. Gauge residual -0.72 to +0.48 m, std "
              "18.4 cm. Residual = series minus its own utide fit over the "
-             "gauge record period, trend=False. The surge is generated inside "
+             "gauge record period, trend=False, no long-period "
+             "constituents (the seasonal cycle is weather and Hormuz "
+             "exchange, so it stays in the residual). The surge is generated inside "
              "the Gulf by wind over a shallow enclosed sea, so it is largest "
              "at the head of the Gulf and along the southern shelf.")
     return s
@@ -117,7 +119,7 @@ def salmiya_slide(prs):
 
 def majis_slide(prs):
     """The contrast to Salmiya, CROCO alone as on that slide. Outside Hormuz
-    the surge is a third the size, so the same few-cm errors weigh more: this
+    the surge is less than half the size, so the same few-cm errors weigh more: this
     is the weakest residual score in the deck, and the slide says what it
     is rather than leaving it out. Same layout as Salmiya, so the two read as
     a pair."""
@@ -127,9 +129,9 @@ def majis_slide(prs):
                    "Majis, Oman: outside the Gulf,\nthe surge is small.",
                    size=30)
     for k, (big, lbl) in enumerate([
-            ("0.65", "correlation\nhourly, 14 months"),
-            ("5.3 cm", "RMSE"),
-            ("±6 cm", "typical surge\nat the gauge")]):
+            ("0.81", "correlation\nhourly, 14 months"),
+            ("5.6 cm", "RMSE"),
+            ("±8 cm", "typical surge\nat the gauge")]):
         ports.stat(s, Inches(6.75) + k * Inches(2.0), Inches(0.95), big, lbl,
                    width=Inches(1.9), size=40)
     dk.picture(s, ports.asset("wl-gauge-majis-croco.png"), MARGIN,
@@ -141,15 +143,15 @@ def majis_slide(prs):
                   "correlation 0.98.")
     notes(s, ports.TIDE_NOTES["Majis"] + "Majis: 8 482 hourly pairs after the spike QC (155 readings, "
              "1.6%, flagged by an iterated 5-h running-median test at "
-             "0.10 m). CROCO r 0.65, RMSE 5.3 cm. Residual std: gauge 6.0 cm, "
-             "CROCO 6.4 cm; at Salmiya the gauge std is 18.4 cm. The surge is "
+             "0.10 m). CROCO r 0.81, RMSE 5.6 cm. Residual std: gauge 8.2 cm, "
+             "CROCO 9.1 cm; at Salmiya the gauge std is 18.4 cm. The surge is "
              "made inside the Gulf by wind over a shallow enclosed sea, while "
              "the tide comes in through Hormuz: at Majis the tide is near "
              "exact (r 0.98, amplitudes within 2 cm on the main constituents, "
-             "a uniform ~25 min lag still to be checked) and the surge is a "
-             "third of Salmiya's, so a few cm of error costs more "
+             "a uniform ~25 min lag that is the model's time stamp, not "
+             "physics) and the surge is less than half of Salmiya's, so a few cm of error costs more "
              "correlation. If pressed: the operational forecast runs an "
-             "ensemble with MERCATOR, which scores r 0.85 here.")
+             "ensemble with MERCATOR, which scores r 0.89 here.")
     return s
 
 
@@ -164,10 +166,15 @@ def abudhabi_slide(prs):
                   "model only — there is no UAE gauge in this comparison yet. "
                   "Your records are what would change that.")
     notes(s, "CROCO C04_I01 hindcast, 2016-2024 hourly, nearest wet cell to "
-             "Khalifa Port (~3 km grid, ~6 m deep). Residual -0.37 to +0.60 m; "
-             "0.1 / 99.9 percentiles -0.27 / +0.47 m. Set-downs below -0.25 m "
-             "about four a year. Zayed Port, 40 km along the coast, tracks it "
-             "at r 0.99. This is the lead-in to the data-sharing ask: the gap "
+             "Khalifa Port (~3 km grid, ~6 m deep). The seasonal cycle is in "
+             "the residual (black line, 30-day mean: about -11 cm in "
+             "February to +14 cm in July), as at the gauges. Residual -0.47 "
+             "to +0.62 m; 0.1 / 99.9 percentiles -0.35 / +0.51 m. Set-downs "
+             "below -0.25 m about seven a year, mostly in winter. The +0.62 m "
+             "maximum (18 Jun 2023) is an event the model overshot at both "
+             "gauges, so the bottom panel shows Feb-Mar 2019 instead. Zayed "
+             "Port, 40 km along the coast, tracked Khalifa at r 0.99 in an "
+             "earlier extraction. This is the lead-in to the data-sharing ask: the gap "
              "in the evidence is a UAE gauge, and they may hold one.")
     return s
 

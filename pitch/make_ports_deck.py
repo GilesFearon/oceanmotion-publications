@@ -502,14 +502,20 @@ def ukc_budget(s, left, top, width):
 TIDE_NOTES = {
     "Salmiya": "Tide (top panel, August 2023 drawn; r and RMSE over the whole "
                "record): M2 -5.5 cm, O1 +7 cm, lag 61 min (M2) to 95 min "
-               "(K1); the 38 cm RMSE is mostly that timing, accumulated along "
-               "the tide's path from Hormuz to the head of the Gulf. "
+               "(K1); the 38 cm RMSE is mostly that timing. About 28 min of "
+               "each lag is a time-stamp convention (the model's hourly means "
+               "are stamped at the end of the hour, the gauge's at the "
+               "centre); the rest, 33 min (M2) to 67 min (K1), is real, "
+               "accumulated along the tide's path from Hormuz to the head of "
+               "the Gulf. "
                "Operationally the local forecast takes its tide from the "
                "gauge's own harmonics - the residual is what the model brings. ",
-    "Majis": "Tide (top panel, August 2023 drawn): amplitudes within 2.1 cm "
+    "Majis": "Tide (top panel, August 2023 drawn): amplitudes within 2.0 cm "
              "on M2 S2 N2 K1 O1, and the model lags by the same ~25 min on "
-             "every constituent - looks like a timestamp convention on the "
-             "hourly averages, to be checked. ",
+             "every constituent. That is a time-stamp convention, not "
+             "physics: the model's hourly means are stamped at the end of "
+             "the hour, the gauge's at the centre; re-stamped, every "
+             "constituent is within 4 min. ",
 }
 
 
@@ -645,9 +651,14 @@ def forecasts_strip(s, top):
 RESID_METHOD = ("Residual only. Gauge, CROCO and MERCATOR each put through the "
                 "same harmonic analysis over the gauge record period (utide, "
                 "trend=False - the record is too short to fit a trend), exactly "
-                "as the operational forecast does. MERCATOR has no tide, but "
-                "the fit removes the seasonal constituents the gauge tide "
-                "already carries, so they are not counted twice. MERCATOR is "
+                "as the operational forecast does. No long-period "
+                "constituents are fitted (SA, SSA, MSM, MM, MF): the seasonal "
+                "cycle here is air pressure, heating and Hormuz exchange, not "
+                "tide, and it changes from year to year, so it stays in the "
+                "residual for the models to forecast. MERCATOR has no tide, "
+                "but the fit removes what the gauge tide carries that is not "
+                "astronomical (the daily sea-breeze and pressure cycles, the "
+                "mean offset), so nothing is counted twice. MERCATOR is "
                 "not forced by air pressure, so the inverse barometer is added "
                 "to it first (ERA5 here, the forecast's own forcing pressure "
                 "operationally). These are the "
@@ -660,7 +671,7 @@ RESID_METHOD = ("Residual only. Gauge, CROCO and MERCATOR each put through the "
 def salmiya_slide(prs):
     return gauge_slide(
         prs, "Salmiya", "Salmiya, Kuwait: the surge,\nevent by event.",
-        (("0.88", "8.7 cm"), ("0.93", "6.9 cm")),
+        (("0.88", "8.8 cm"), ("0.93", "6.8 cm")),
         "Residual only: gauge, our model and MERCATOR (with the air-pressure "
         "response added) put through one harmonic analysis over the gauge "
         "record, as the live forecast does; 15 Jun 2023 – 26 Mar 2024. Some "
@@ -669,9 +680,9 @@ def salmiya_slide(prs):
         "operationally the ensemble grows further, with our model forced by "
         "both GFS and ECMWF.",
         "Salmiya: 6 834 hourly pairs (6 gauge spikes removed). CROCO r 0.88 "
-        "RMSE 8.7 cm; MERCATOR r 0.93 RMSE 6.9 cm; mean of the two r 0.94 "
+        "RMSE 8.8 cm; MERCATOR r 0.93 RMSE 6.8 cm; mean of the two r 0.94 "
         "RMSE 6.4 cm. Without "
-        "the inverse barometer MERCATOR scores only r 0.77: it misses the "
+        "the inverse barometer MERCATOR scores only r 0.74: it misses the "
         "annual cycle here, which is mostly the air-pressure response. Gauge "
         "residual -0.72 to +0.48 m. " + RESID_METHOD, strip=True)
 
@@ -684,17 +695,17 @@ def majis_slide(prs):
     scale, so the numbers carry the comparison with Salmiya."""
     return gauge_slide(
         prs, "Majis", "Majis, Oman: outside the Gulf,\nthe surge is small.",
-        (("0.65", "5.3 cm"), ("0.85", "3.1 cm")),
+        (("0.81", "5.6 cm"), ("0.89", "4.0 cm")),
         "The surge is generated inside the Gulf by wind over a shallow, "
         "enclosed sea; the tide comes in from outside. At Majis the tide is "
-        "near exact and the surge a third of Salmiya's. Gauge record 6 Feb "
+        "near exact and the surge less than half of Salmiya's. Gauge record 6 Feb "
         "2023 – 24 Mar 2024, with unphysical spikes removed (1.6% of readings).",
         "Majis: 8 482 hourly pairs after the spike QC (155 readings, 1.6%, "
         "flagged by an iterated 5-h running-median test at 0.10 m; the "
-        "same test removes 6 readings at Salmiya). CROCO r 0.65 RMSE 5.3 cm; "
-        "MERCATOR r 0.85 RMSE 3.1 cm; mean r 0.81 RMSE 3.6 cm - here "
-        "MERCATOR is the stronger model and the ensemble mean sits just "
-        "below it. Residual std: gauge 6.0 cm, CROCO 6.4 cm; at Salmiya gauge "
+        "same test removes 6 readings at Salmiya). CROCO r 0.81 RMSE 5.6 cm; "
+        "MERCATOR r 0.89 RMSE 4.0 cm; mean r 0.89 RMSE 4.0 cm - here "
+        "MERCATOR is the stronger model and the ensemble mean only matches "
+        "it. Residual std: gauge 8.2 cm, CROCO 9.1 cm; at Salmiya gauge "
         "18.4 cm. " + RESID_METHOD)
 
 
@@ -748,13 +759,21 @@ def abudhabi_slide(prs):
                   "year of your own record turns this into the slides before it.")
     notes(s, "CROCO C04_I01 hindcast, 2016-2024 hourly, at the nearest wet "
              "cell to the terminal (~3 km grid, ~6 m deep, within 2 km). "
-             "Residual extracted exactly as tidal_analysis.py does it for an "
-             "ungauged site: fitted over 2016-2024, so the annual cycle is in "
-             "the tide (SA 10.9 cm, SSA 3.4 cm) and the residual's monthly "
-             "climatology is flat to within 2 cm. "
-             "-0.37 to +0.60 m; 0.1 / 99.9 percentiles -0.27 / +0.47 m. "
-             "Set-downs below -0.25 m: ~4 events a year; below -0.20 m: ~11 a "
-             "year. Zayed Port, 40 km along the coast, tracks it at r 0.99.")
+             "Residual = zeta minus its own harmonic fit over 2016-2024, with "
+             "the constituent rule the gauges use (tide_fit.py: no SA, SSA, "
+             "MSM, MM, MF), so the seasonal cycle is in the residual, not the "
+             "tide: the black line, the 30-day mean, runs about -11 cm in "
+             "February to +14 cm in July, and any one month varies by 3-7 cm "
+             "from year to year. Residual -0.47 to +0.62 m; 0.1 / 99.9 "
+             "percentiles -0.35 / +0.51 m. Set-downs below -0.25 m: about 7 "
+             "events a year, below -0.20 m about 11 (events at least 3 days "
+             "apart), most of them in winter, when they sit on the seasonal "
+             "low. Bottom panel: the largest set-down (-0.47 m, 14 Feb 2019) "
+             "and the +0.48 m surge 16 days later. The record maximum, +0.62 m "
+             "on 18 Jun 2023, is not shown: the model overshot that event at "
+             "both gauges (by 0.20 m at Salmiya, 0.12 m at Majis). Zayed Port, "
+             "40 km along the coast, tracked Khalifa at r 0.99 in an earlier "
+             "extraction.")
     return s
 
 
@@ -782,11 +801,12 @@ def ukc_slide(prs):
              "the residual and the waves that drive vessel response; the "
              "tide comes from the port's own harmonics. For an example of "
              "the residual in action: at Khalifa Port, early February 2019, a "
-             "set-down of 0.20-0.28 m held for three days as the tides built "
-             "to springs - at the 2 Feb low water the sea stood at -1.03 m "
-             "against a predicted -0.82 m (hindcast, nearest model cell). "
-             "Set-downs of 0.25 m or more: about four events a year at "
-             "Khalifa.")
+             "set-down of 0.13-0.39 m held for three days as the tides built "
+             "to springs, about 0.20 m of it the winter low of the seasonal "
+             "cycle - at the 2 Feb low water the sea stood at -1.03 m "
+             "against a predicted -0.71 m (hindcast, nearest model cell). "
+             "Set-downs of 0.25 m or more: about seven events a year at "
+             "Khalifa, mostly in winter.")
     return s
 
 

@@ -75,8 +75,8 @@ Saying that disarms the question you would otherwise face at slide 16: "so does 
 
 Waves are what they already buy, and they have a comparator for them. The surge is where you are strongest and where they are probably guessing.
 
-- **Salmiya (slide 13):** r 0.88, RMSE 8.7 cm for the non-tidal residual, event by event.
-- **Khalifa (slide 14):** nine years of modelled surge at an Abu Dhabi port, with set-downs below −0.25 m about four times a year. The caption states that there is no UAE gauge in the comparison.
+- **Salmiya (slide 13):** r 0.88, RMSE 8.8 cm for the non-tidal residual, event by event.
+- **Khalifa (slide 14):** nine years of modelled surge at an Abu Dhabi port, with set-downs below −0.25 m about seven times a year, mostly in winter, on top of a seasonal cycle of about ±12 cm. The caption states that there is no UAE gauge in the comparison.
 
 **Slide 14 is your pivot into the data ask.** Say it plainly:
 
@@ -85,7 +85,7 @@ Waves are what they already buy, and they have a comparator for them. The surge 
 
 ### MERCATOR is deliberately left off
 
-The ports deck's Salmiya slide draws MERCATOR beside CROCO to argue for the operational ensemble. This deck uses a CROCO-only version (gauge against model, r 0.88, RMSE 8.7 cm), because the argument here is design data, not forecasting.
+The ports deck's Salmiya slide draws MERCATOR beside CROCO to argue for the operational ensemble. This deck uses a CROCO-only version (gauge against model, r 0.88, RMSE 8.8 cm), because the argument here is design data, not forecasting.
 
 **If they raise CMEMS / GLORYS as the free alternative:**
 - **GLORYS, the long-duration reanalysis, saves only daily means.** A daily mean cannot represent a surge peak, so it is not usable for design water levels. ← strongest argument
